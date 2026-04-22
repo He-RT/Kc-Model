@@ -59,12 +59,6 @@ class Config:
     drive_folder: str = "kcact_hebei_phase1_rf"
 
 
-GAUL_L1 = ee.FeatureCollection("FAO/GAUL/2015/level1")
-WORLD_COVER_2021 = ee.ImageCollection("ESA/WorldCover/v200").first()
-S2_SR = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-S2_CLOUDS = ee.ImageCollection("COPERNICUS/S2_CLOUD_PROBABILITY")
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Train and export Hebei winter wheat Random Forest masks in GEE."
@@ -152,15 +146,17 @@ def build_config(args: argparse.Namespace) -> Config:
 
 
 def get_hebei_geometry(config: Config) -> ee.Geometry:
+    gaul_l1 = ee.FeatureCollection("FAO/GAUL/2015/level1")
     return (
-        GAUL_L1.filter(ee.Filter.eq("ADM0_NAME", config.country_name))
+        gaul_l1.filter(ee.Filter.eq("ADM0_NAME", config.country_name))
         .filter(ee.Filter.eq("ADM1_NAME", config.province_name))
         .geometry()
     )
 
 
 def get_cropland_mask() -> ee.Image:
-    return WORLD_COVER_2021.select("Map").eq(40).rename("cropland")
+    world_cover_2021 = ee.ImageCollection("ESA/WorldCover/v200").first()
+    return world_cover_2021.select("Map").eq(40).rename("cropland")
 
 
 def mask_edges(image: ee.Image) -> ee.Image:
@@ -172,14 +168,17 @@ def mask_edges(image: ee.Image) -> ee.Image:
 def build_cloud_joined_collection(
     start_date: ee.Date, end_date: ee.Date, region: ee.Geometry
 ) -> ee.ImageCollection:
+    s2_sr = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+    s2_clouds = ee.ImageCollection("COPERNICUS/S2_CLOUD_PROBABILITY")
+
     sr = (
-        S2_SR.filterBounds(region)
+        s2_sr.filterBounds(region)
         .filterDate(start_date, end_date)
         .filter(ee.Filter.lte("CLOUDY_PIXEL_PERCENTAGE", 80))
         .map(mask_edges)
     )
 
-    clouds = S2_CLOUDS.filterBounds(region).filterDate(start_date, end_date)
+    clouds = s2_clouds.filterBounds(region).filterDate(start_date, end_date)
 
     joined = ee.Join.saveFirst("cloud_mask").apply(
         primary=sr,
