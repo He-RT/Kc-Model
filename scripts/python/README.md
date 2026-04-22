@@ -2,6 +2,7 @@
 
 后续这里会放可直接运行的脚本，例如：
 
+- `export_hebei_winter_wheat_candidates.py`
 - `export_hebei_winter_wheat_mask_rf.py`
 - `compute_et0_pm.py`
 - `merge_feature_tables.py`
@@ -15,4 +16,5 @@
 
 当前已落地：
 
+- [export_hebei_winter_wheat_candidates.py](/Users/hert/Projects/dcsdxx/scripts/python/export_hebei_winter_wheat_candidates.py:1)
 - [export_hebei_winter_wheat_mask_rf.py](/Users/hert/Projects/dcsdxx/scripts/python/export_hebei_winter_wheat_mask_rf.py:1)

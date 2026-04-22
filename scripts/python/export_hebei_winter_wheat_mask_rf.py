@@ -34,6 +34,7 @@ import ee
 class Config:
     country_name: str = "China"
     province_name: str = "Hebei"
+    boundary_province_name: str = "Hebei Sheng"
     years: tuple[int, ...] = (2021, 2022, 2023, 2024, 2025)
     preview_year: int = 2025
     sample_asset: str = (
@@ -149,7 +150,7 @@ def get_hebei_geometry(config: Config) -> ee.Geometry:
     gaul_l1 = ee.FeatureCollection("FAO/GAUL/2015/level1")
     return (
         gaul_l1.filter(ee.Filter.eq("ADM0_NAME", config.country_name))
-        .filter(ee.Filter.eq("ADM1_NAME", config.province_name))
+        .filter(ee.Filter.eq("ADM1_NAME", config.boundary_province_name))
         .geometry()
     )
 
