@@ -1,0 +1,68 @@
+project:
+  name: kcact-ncp
+  version: 0.1.0
+  stage: mvp
+
+scope:
+  region_name: hebei
+  crop_type: winter_wheat
+  years: [2021, 2022, 2023]
+  sample_unit: field_date
+  temporal_resolution: 8d
+
+paths:
+  field_boundaries: data/external/field_boundaries/hebei_winter_wheat_fields.geojson
+  raw_dir: data/raw
+  interim_dir: data/interim
+  processed_dir: data/processed
+  outputs_dir: outputs
+  logs_dir: logs
+
+gee:
+  sentinel2_collection: COPERNICUS/S2_SR_HARMONIZED
+  cloud_probability_collection: COPERNICUS/S2_CLOUD_PROBABILITY
+  era5_land_collection: ECMWF/ERA5_LAND/HOURLY
+  etc_collection: MODIS/061/MOD16A2GF
+  export_format: CSV
+  export_folder: kcact_hebei_mvp
+
+features:
+  spectral_indices:
+    - ndvi
+    - evi
+    - savi
+    - gndvi
+    - lswi
+    - nirv
+    - re_ndvi
+  meteorology:
+    - tmin_c
+    - tmax_c
+    - tmean_c
+    - precip_mm
+    - wind_2m_m_s
+    - solar_rad_mj_m2_d
+    - dewpoint_c
+  static:
+    - soil_type
+    - elevation_m
+    - slope_deg
+    - irrigated_flag
+
+label:
+  etc_source: mod16a2gf
+  et0_method: fao_penman_monteith
+  kcact_formula: etc_8d_mm / et0_pm_8d_mm
+
+qc:
+  min_cloud_free_ratio: 0.3
+  min_s2_obs_count: 1
+  min_et0_mm_8d: 0.01
+  min_kcact: 0.01
+  max_kcact: 2.0
+
+validation:
+  strategy: leave_one_year_out
+  default_split:
+    train_years: [2021, 2022]
+    test_years: [2023]

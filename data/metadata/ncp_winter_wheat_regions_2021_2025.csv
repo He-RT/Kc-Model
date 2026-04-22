@@ -1,0 +1,36 @@
+year,region_level,province,scope_label,role,include_in_mvp,notes
+2021,province,Hebei,Hebei plain farming area,core,yes,Core North China Plain winter wheat area
+2021,province,Henan,Huang-Huai-Hai winter wheat area,core,yes,Core North China Plain winter wheat area
+2021,province,Shandong,Shandong plain farming area,core,yes,Core North China Plain winter wheat area
+2021,subregion,Anhui,areas along Huai River and north of Huai River,core,yes,Use northern Anhui only
+2021,subregion,Jiangsu,areas along Huai River and north of Subei Main Irrigation Canal,core,yes,Use northern Jiangsu only
+2021,subregion,Beijing,plain cropland area,extended,no,Optional in phase 2
+2021,subregion,Tianjin,concentrated cropland area,extended,no,Optional in phase 2
+2022,province,Hebei,Hebei plain farming area,core,yes,Core North China Plain winter wheat area
+2022,province,Henan,Huang-Huai-Hai winter wheat area,core,yes,Core North China Plain winter wheat area
+2022,province,Shandong,Shandong plain farming area,core,yes,Core North China Plain winter wheat area
+2022,subregion,Anhui,areas along Huai River and north of Huai River,core,yes,Use northern Anhui only
+2022,subregion,Jiangsu,areas along Huai River and north of Subei Main Irrigation Canal,core,yes,Use northern Jiangsu only
+2022,subregion,Beijing,plain cropland area,extended,no,Optional in phase 2
+2022,subregion,Tianjin,concentrated cropland area,extended,no,Optional in phase 2
+2023,province,Hebei,Hebei plain farming area,core,yes,Core North China Plain winter wheat area
+2023,province,Henan,Huang-Huai-Hai winter wheat area,core,yes,Core North China Plain winter wheat area
+2023,province,Shandong,Shandong plain farming area,core,yes,Core North China Plain winter wheat area
+2023,subregion,Anhui,areas along Huai River and north of Huai River,core,yes,Use northern Anhui only
+2023,subregion,Jiangsu,areas along Huai River and north of Subei Main Irrigation Canal,core,yes,Use northern Jiangsu only
+2023,subregion,Beijing,plain cropland area,extended,no,Optional in phase 2
+2023,subregion,Tianjin,concentrated cropland area,extended,no,Optional in phase 2
+2024,province,Hebei,Hebei plain farming area,core,yes,Core North China Plain winter wheat area
+2024,province,Henan,Huang-Huai-Hai winter wheat area,core,yes,Core North China Plain winter wheat area
+2024,province,Shandong,Shandong plain farming area,core,yes,Core North China Plain winter wheat area
+2024,subregion,Anhui,areas along Huai River and north of Huai River,core,yes,Use northern Anhui only
+2024,subregion,Jiangsu,areas along Huai River and north of Subei Main Irrigation Canal,core,yes,Use northern Jiangsu only
+2024,subregion,Beijing,plain cropland area,extended,no,Optional in phase 2
+2024,subregion,Tianjin,concentrated cropland area,extended,no,Optional in phase 2
+2025,province,Hebei,Hebei plain farming area,core,yes,Core North China Plain winter wheat area
+2025,province,Henan,Huang-Huai-Hai winter wheat area,core,yes,Core North China Plain winter wheat area
+2025,province,Shandong,Shandong plain farming area,core,yes,Core North China Plain winter wheat area
+2025,subregion,Anhui,areas along Huai River and north of Huai River,core,yes,Use northern Anhui only
+2025,subregion,Jiangsu,areas along Huai River and north of Subei Main Irrigation Canal,core,yes,Use northern Jiangsu only
+2025,subregion,Beijing,plain cropland area,extended,no,Optional in phase 2
+2025,subregion,Tianjin,concentrated cropland area,extended,no,Optional in phase 2
