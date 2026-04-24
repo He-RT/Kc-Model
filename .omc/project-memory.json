@@ -1,0 +1,207 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1777002309408,
+  "projectRoot": "/Users/hert/Projects/dcsdxx",
+  "techStack": {
+    "languages": [],
+    "frameworks": [],
+    "packageManager": null,
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "docs",
+      "scripts",
+      "src",
+      "tests"
+    ],
+    "gitBranches": null
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "configs": {
+      "path": "configs",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1777002309397,
+      "keyFiles": [
+        "mvp_hebei_winter_wheat_2021_2023.yaml"
+      ]
+    },
+    "data": {
+      "path": "data",
+      "purpose": "Data files",
+      "fileCount": 0,
+      "lastAccessed": 1777002309398,
+      "keyFiles": []
+    },
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 8,
+      "lastAccessed": 1777002309398,
+      "keyFiles": [
+        "mvp-dataflow.md",
+        "phase1_crop_mask_method_and_region_list.md",
+        "phase1_gee_hebei_mask_runbook.md",
+        "phase1_gee_hebei_rf_runbook.md",
+        "phase1_python_gee_hebei_rf_runbook.md"
+      ]
+    },
+    "gee": {
+      "path": "gee",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1777002309398,
+      "keyFiles": [
+        "README.md",
+        "export_hebei_winter_wheat_mask_2021_2025.js"
+      ]
+    },
+    "logs": {
+      "path": "logs",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1777002309398,
+      "keyFiles": []
+    },
+    "notebooks": {
+      "path": "notebooks",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1777002309399,
+      "keyFiles": []
+    },
+    "outputs": {
+      "path": "outputs",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1777002309399,
+      "keyFiles": []
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 1,
+      "lastAccessed": 1777002309400,
+      "keyFiles": []
+    },
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 0,
+      "lastAccessed": 1777002309400,
+      "keyFiles": []
+    },
+    "tests": {
+      "path": "tests",
+      "purpose": "Test files",
+      "fileCount": 1,
+      "lastAccessed": 1777002309400,
+      "keyFiles": []
+    },
+    "outputs/models": {
+      "path": "outputs/models",
+      "purpose": "Data models",
+      "fileCount": 1,
+      "lastAccessed": 1777002309401,
+      "keyFiles": []
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "README.md",
+      "accessCount": 2,
+      "lastAccessed": 1777002724947,
+      "type": "file"
+    },
+    {
+      "path": "docs/mvp-dataflow.md",
+      "accessCount": 1,
+      "lastAccessed": 1777002726480,
+      "type": "file"
+    },
+    {
+      "path": "docs/phase1_crop_mask_method_and_region_list.md",
+      "accessCount": 1,
+      "lastAccessed": 1777002727797,
+      "type": "file"
+    },
+    {
+      "path": "docs/phase1_python_hebei_candidate_runbook.md",
+      "accessCount": 1,
+      "lastAccessed": 1777002729448,
+      "type": "file"
+    },
+    {
+      "path": "docs/phase2_kcact_pipeline_runbook.md",
+      "accessCount": 1,
+      "lastAccessed": 1777002730875,
+      "type": "file"
+    },
+    {
+      "path": "docs/phase1_rf_sample_schema.md",
+      "accessCount": 1,
+      "lastAccessed": 1777002732356,
+      "type": "file"
+    },
+    {
+      "path": "scripts/python/export_hebei_winter_wheat_candidates.py",
+      "accessCount": 1,
+      "lastAccessed": 1777002735873,
+      "type": "file"
+    },
+    {
+      "path": "scripts/python/export_hebei_winter_wheat_mask_rf.py",
+      "accessCount": 1,
+      "lastAccessed": 1777002737278,
+      "type": "file"
+    },
+    {
+      "path": "scripts/python/export_hebei_patch_timeseries.py",
+      "accessCount": 1,
+      "lastAccessed": 1777002738554,
+      "type": "file"
+    },
+    {
+      "path": "scripts/python/make_hebei_dl_sequences.py",
+      "accessCount": 1,
+      "lastAccessed": 1777002741108,
+      "type": "file"
+    },
+    {
+      "path": "src/kcact/features/et0.py",
+      "accessCount": 1,
+      "lastAccessed": 1777002742248,
+      "type": "file"
+    },
+    {
+      "path": "src/kcact/modeling/sequences.py",
+      "accessCount": 1,
+      "lastAccessed": 1777002744635,
+      "type": "file"
+    },
+    {
+      "path": "src/kcact/data/io.py",
+      "accessCount": 1,
+      "lastAccessed": 1777002750372,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}
