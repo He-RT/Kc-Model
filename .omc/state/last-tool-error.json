@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"ls -la /Users/hert/Projects/dcsdxx/outputs/tables/kcact_stage_split_* 2>/dev/null; cat /Users/hert/Projects/dcsdxx/outputs/tables/kcact_stage_split_xgb_loyo.csv 2>/dev/null\",\"description\":...",
+  "error": "Exit code 1\n(eval):1: no matches found: /Users/hert/Projects/dcsdxx/outputs/tables/kcact_stage_split_*",
+  "timestamp": "2026-04-24T18:01:36.401Z",
+  "retry_count": 1
+}
