@@ -125,9 +125,51 @@
   },
   "hotPaths": [
     {
+      "path": "scripts/python/train_kcact_lstm.py",
+      "accessCount": 6,
+      "lastAccessed": 1777050193974,
+      "type": "file"
+    },
+    {
+      "path": "scripts/python/export_hebei_kcact_training_data.py",
+      "accessCount": 5,
+      "lastAccessed": 1777036025931,
+      "type": "file"
+    },
+    {
+      "path": "scripts/python/train_kcact_baseline.py",
+      "accessCount": 5,
+      "lastAccessed": 1777049798161,
+      "type": "file"
+    },
+    {
+      "path": "scripts/python/train_kcact_stage_split.py",
+      "accessCount": 4,
+      "lastAccessed": 1777053751178,
+      "type": "file"
+    },
+    {
+      "path": "scripts/python/cross_validate_kcact.py",
+      "accessCount": 3,
+      "lastAccessed": 1777053221169,
+      "type": "file"
+    },
+    {
       "path": "README.md",
       "accessCount": 2,
       "lastAccessed": 1777002724947,
+      "type": "file"
+    },
+    {
+      "path": "tests/test_et0.py",
+      "accessCount": 2,
+      "lastAccessed": 1777005168741,
+      "type": "file"
+    },
+    {
+      "path": "scripts/python/cross_validate_kcact_v2.py",
+      "accessCount": 2,
+      "lastAccessed": 1777053271745,
       "type": "file"
     },
     {
@@ -200,6 +242,18 @@
       "path": "src/kcact/data/io.py",
       "accessCount": 1,
       "lastAccessed": 1777002750372,
+      "type": "file"
+    },
+    {
+      "path": "scripts/python/estimate_current_kc.py",
+      "accessCount": 1,
+      "lastAccessed": 1777036349148,
+      "type": "file"
+    },
+    {
+      "path": "scripts/python/tune_kcact_xgb.py",
+      "accessCount": 1,
+      "lastAccessed": 1777050987352,
       "type": "file"
     }
   ],

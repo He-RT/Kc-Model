@@ -11,8 +11,12 @@ from kcact.features.et0 import compute_et0_fao56
 def _normalize_patch_id(df: pd.DataFrame) -> pd.DataFrame:
     result = df.copy()
     if "patch_id" not in result.columns:
-        raise ValueError("Expected column 'patch_id' in input table")
-    result["patch_id"] = result["patch_id"].astype(str)
+        if "point_id" in result.columns:
+            result["patch_id"] = result["point_id"].astype(str)
+        else:
+            raise ValueError("Expected column 'patch_id' or 'point_id' in input table")
+    else:
+        result["patch_id"] = result["patch_id"].astype(str)
     return result
 
 
@@ -41,25 +45,28 @@ def aggregate_daily_weather_to_mod16_windows(
     joined = joined[(joined["date_x"] >= joined["date_start"]) & (joined["date_x"] < joined["date_end"])].copy()
     joined = joined.rename(columns={"date_x": "weather_date", "date_y": "window_date"})
 
+    agg_spec = {
+        "et0_pm_8d_mm": ("et0_pm_mm", "sum"),
+        "precip_mm_8d": ("precip_mm", "sum"),
+        "tmean_c": ("tmean_c", "mean"),
+        "tmax_c": ("tmax_c", "mean"),
+        "tmin_c": ("tmin_c", "mean"),
+        "wind_2m_m_s_mean_8d": ("wind_2m_m_s", "mean"),
+        "solar_rad_mj_m2_d_sum_8d": ("solar_rad_mj_m2_d", "sum"),
+        "dewpoint_c_mean_8d": ("dewpoint_c", "mean"),
+        "pressure_kpa_mean_8d": ("pressure_kpa", "mean"),
+        "vpd_kpa_mean_8d": ("vpd_kpa", "mean"),
+        "gdd_8d": ("gdd_daily", "sum"),
+        "centroid_lat": ("centroid_lat", "first"),
+        "centroid_lon": ("centroid_lon", "first"),
+    }
+    for opt_col in ["area_ha", "elevation_m"]:
+        if opt_col in joined.columns:
+            agg_spec[opt_col] = (opt_col, "first")
+
     aggregated = (
         joined.groupby(["patch_id", "date_start", "date_end", "window_date"], as_index=False)
-        .agg(
-            et0_pm_8d_mm=("et0_pm_mm", "sum"),
-            precip_mm_8d=("precip_mm", "sum"),
-            tmean_c=("tmean_c", "mean"),
-            tmax_c=("tmax_c", "mean"),
-            tmin_c=("tmin_c", "mean"),
-            wind_2m_m_s_mean_8d=("wind_2m_m_s", "mean"),
-            solar_rad_mj_m2_d_sum_8d=("solar_rad_mj_m2_d", "sum"),
-            dewpoint_c_mean_8d=("dewpoint_c", "mean"),
-            pressure_kpa_mean_8d=("pressure_kpa", "mean"),
-            vpd_kpa_mean_8d=("vpd_kpa", "mean"),
-            gdd_8d=("gdd_daily", "sum"),
-            centroid_lat=("centroid_lat", "first"),
-            centroid_lon=("centroid_lon", "first"),
-            area_ha=("area_ha", "first"),
-            elevation_m=("elevation_m", "first"),
-        )
+        .agg(**agg_spec)
         .rename(columns={"window_date": "date"})
     )
     return aggregated
@@ -100,15 +107,87 @@ def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
     result = df.sort_values(["patch_id", "date"]).copy()
     result["year"] = result["date"].dt.year
     result["doy"] = result["date"].dt.dayofyear
+
+    # GDD accumulation from start of each patch's record
     result["gdd_cum"] = result.groupby("patch_id")["gdd_8d"].cumsum()
-    result["precip_7d"] = result.groupby("patch_id")["precip_mm_8d"].transform(lambda s: s.rolling(1, min_periods=1).sum())
-    result["precip_15d"] = result.groupby("patch_id")["precip_mm_8d"].transform(lambda s: s.rolling(2, min_periods=1).sum())
-    result["precip_30d"] = result.groupby("patch_id")["precip_mm_8d"].transform(lambda s: s.rolling(4, min_periods=1).sum())
+
+    # Rolling precipitation sums (denominated in 8-day window counts)
+    result["precip_7d"] = result.groupby("patch_id")["precip_mm_8d"].transform(
+        lambda s: s.rolling(1, min_periods=1).sum())
+    result["precip_15d"] = result.groupby("patch_id")["precip_mm_8d"].transform(
+        lambda s: s.rolling(2, min_periods=1).sum())
+    result["precip_30d"] = result.groupby("patch_id")["precip_mm_8d"].transform(
+        lambda s: s.rolling(4, min_periods=1).sum())
+
+    # NDVI temporal derivatives — capture growth trajectory shape
     result["ndvi_lag1"] = result.groupby("patch_id")["ndvi"].shift(1)
+    result["ndvi_lag1"] = result["ndvi_lag1"].fillna(result["ndvi"])
+    result["ndvi_diff"] = result["ndvi"] - result["ndvi_lag1"]          # 1st derivative
+    result["ndvi_accel"] = result.groupby("patch_id")["ndvi_diff"].diff()  # 2nd derivative
+    result["ndvi_accel"] = result["ndvi_accel"].fillna(0.0)
+
     result["ndvi_mean_prev_3win"] = (
         result.groupby("patch_id")["ndvi"]
         .transform(lambda s: s.shift(1).rolling(3, min_periods=1).mean())
     )
+    result["ndvi_mean_prev_3win"] = result["ndvi_mean_prev_3win"].fillna(result["ndvi"])
+
+    # Feature interactions — capture joint signals
+    if "vpd_kpa_mean_8d" in result.columns:
+        result["ndvi_vpd"] = result["ndvi"] * result["vpd_kpa_mean_8d"]
+        if "lswi" in result.columns:
+            result["lswi_vpd"] = result["lswi"] * result["vpd_kpa_mean_8d"]
+
+    # Phenology features — tell the model where each window sits in the season
+    # Winter wheat: planting ~Oct 1 (doy 274), harvest ~end of Jul (doy ~210)
+    result["doy_season"] = np.where(
+        result["doy"] >= 274, result["doy"] - 274, result["doy"] + 91
+    )  # days since Oct 1, continuous 0→302
+
+    # GDD fraction: how much of this patch's total heat accumulation so far
+    patch_gdd_total = result.groupby("patch_id")["gdd_cum"].transform("max")
+    result["gdd_frac"] = np.where(
+        patch_gdd_total > 0, result["gdd_cum"] / patch_gdd_total, 0.0
+    )
+
+    # NDVI relative position within each patch's observed range
+    patch_ndvi_min = result.groupby("patch_id")["ndvi"].transform("min")
+    patch_ndvi_max = result.groupby("patch_id")["ndvi"].transform("max")
+    ndvi_range = patch_ndvi_max - patch_ndvi_min
+    result["ndvi_rel"] = np.where(
+        ndvi_range > 0.01,
+        (result["ndvi"] - patch_ndvi_min) / ndvi_range,
+        0.5,
+    )
+
+    # ---- Advanced interactions & senescence indicators ----
+
+    # Nonlinear VPD response — atmospheric demand has diminishing returns
+    if "vpd_kpa_mean_8d" in result.columns:
+        vpd = result["vpd_kpa_mean_8d"]
+        result["vpd_sq"] = vpd ** 2
+        result["vpd_doy_season"] = vpd * result["doy_season"]
+        result["vpd_gdd_frac"] = vpd * result["gdd_frac"]
+
+    # Days since peak NDVI — signals senescence depth
+    patch_ndvi_cummax_idx = result.groupby("patch_id")["ndvi"].transform(
+        lambda s: s.expanding().apply(lambda x: x.argmax(), raw=False)
+    )
+    # For each patch, how many windows since the highest NDVI so far
+    result["ndvi_peak_dist"] = result.groupby("patch_id").cumcount() - result.groupby("patch_id")["ndvi"].transform(
+        lambda s: s.expanding().apply(lambda x: x.argmax(), raw=False)
+    )
+    result["ndvi_peak_dist"] = result["ndvi_peak_dist"].clip(lower=0)
+
+    # NDVI decline rate — how fast vegetation is browning (8-day window diff)
+    result["ndvi_decline"] = -result["ndvi_diff"]  # positive = declining
+    result["ndvi_decline"] = result["ndvi_decline"].clip(lower=0)
+
+    # LSWI change — water status trajectory (declining LSWI = water stress)
+    if "lswi" in result.columns:
+        lswi_lag1 = result.groupby("patch_id")["lswi"].shift(1).fillna(result["lswi"])
+        result["lswi_diff"] = result["lswi"] - lswi_lag1
+
     return result
 
 
