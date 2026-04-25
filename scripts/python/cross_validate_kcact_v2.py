@@ -27,6 +27,12 @@ try:
 except ImportError:
     HAS_CATBOOST = False
 
+try:
+    from lightgbm import LGBMRegressor
+    HAS_LGBM = True
+except ImportError:
+    HAS_LGBM = False
+
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "src"
 if str(SRC) not in sys.path:
@@ -203,6 +209,132 @@ def main():
                       f"RMSE={np.sqrt(mean_squared_error(yt_s, yp_s)):.4f}  "
                       f"MAE={mean_absolute_error(yt_s, yp_s):.4f}  "
                       f"mean Kc={yt_s.mean():.3f}")
+
+    # ---- 5. Tuned CatBoost (from params file) ----
+    if HAS_CATBOOST:
+        print("\n=== Tuned CatBoost ===")
+        # Load tuned params if available
+        tuned_params = {}
+        tuned_params_path = ROOT / "outputs/tables/kcact_catboost_tuned_params.csv"
+        if tuned_params_path.exists():
+            tuned_df = pd.read_csv(tuned_params_path)
+            if not tuned_df.empty:
+                tuned_params = tuned_df.iloc[0].to_dict()
+                # Remove non-CatBoost keys
+                for k in ["loyo_r2", "Unnamed: 0"]:
+                    tuned_params.pop(k, None)
+                print(f"  Loaded tuned params: {tuned_params}")
+            else:
+                print("  WARNING: tuned params file exists but is empty, using defaults")
+        else:
+            print("  WARNING: tuned params file not found, using defaults")
+            tuned_params = {}
+
+        def make_tuned_catboost():
+            params = dict(iterations=500, depth=6, learning_rate=0.05,
+                         random_seed=42, verbose=0, thread_count=-1)
+            # Override with tuned params if available
+            for k, v in tuned_params.items():
+                # Convert Optuna suggest_* keys to CatBoost constructor keys
+                if k == "n_estimators":
+                    params["iterations"] = int(v)
+                elif k == "max_depth":
+                    params["depth"] = int(v)
+                elif k == "learning_rate":
+                    params["learning_rate"] = float(v)
+                elif k == "subsample":
+                    params["subsample"] = float(v)
+                elif k == "l2_leaf_reg":
+                    params["l2_leaf_reg"] = float(v)
+                elif k == "random_strength":
+                    params["random_strength"] = float(v)
+                elif k == "min_data_in_leaf":
+                    params["min_data_in_leaf"] = int(v)
+                elif k == "border_count":
+                    params["border_count"] = int(v)
+                elif k == "min_child_weight":
+                    params["min_data_in_leaf"] = int(v)
+                elif k == "reg_alpha" or k == "reg_lambda":
+                    pass  # CatBoost uses l2_leaf_reg instead
+            return CatBoostRegressor(**params)
+
+        per, overall = run_loyo(df, feature_cols, years, "TunedCatBoost",
+                               make_tuned_catboost)
+        for r in per:
+            print(f"  {r['test_year']}: R²={r['r2']:.4f} RMSE={r['rmse']:.4f} MAE={r['mae']:.4f}")
+        print(f"  POOLED: R²={overall['r2']:.4f} RMSE={overall['rmse']:.4f} MAE={overall['mae']:.4f}")
+        all_per_year.extend(per)
+        all_overall.append(overall)
+
+    # ---- 6. LightGBM Baseline ----
+    if HAS_LGBM:
+        print("\n=== LightGBM ===")
+        per, overall = run_loyo(df, feature_cols, years, "LightGBM",
+                               lambda: LGBMRegressor(
+                                   n_estimators=300, max_depth=6, learning_rate=0.05,
+                                   subsample=0.8, colsample_bytree=0.8,
+                                   random_state=42, n_jobs=-1, verbose=-1))
+        for r in per:
+            print(f"  {r['test_year']}: R²={r['r2']:.4f} RMSE={r['rmse']:.4f} MAE={r['mae']:.4f}")
+        print(f"  POOLED: R²={overall['r2']:.4f} RMSE={overall['rmse']:.4f} MAE={overall['mae']:.4f}")
+        all_per_year.extend(per)
+        all_overall.append(overall)
+    else:
+        print("\n=== LightGBM not available ===")
+
+    # ---- 7. Simple Average Ensemble ----
+    if HAS_XGB or HAS_CATBOOST or HAS_LGBM:
+        print("\n=== Simple Average Ensemble ===")
+        models_for_ensemble = []
+        names_for_ensemble = []
+        if HAS_XGB:
+            models_for_ensemble.append(lambda: xgb.XGBRegressor(
+                n_estimators=200, max_depth=6, learning_rate=0.05,
+                subsample=0.8, colsample_bytree=0.8,
+                random_state=42, n_jobs=-1))
+            names_for_ensemble.append("XGB")
+        if HAS_CATBOOST:
+            models_for_ensemble.append(lambda: CatBoostRegressor(
+                iterations=500, depth=6, learning_rate=0.05,
+                random_seed=42, verbose=0, thread_count=-1))
+            names_for_ensemble.append("CB")
+        if HAS_LGBM:
+            models_for_ensemble.append(lambda: LGBMRegressor(
+                n_estimators=300, max_depth=6, learning_rate=0.05,
+                subsample=0.8, colsample_bytree=0.8,
+                random_state=42, n_jobs=-1, verbose=-1))
+            names_for_ensemble.append("LGBM")
+
+        y_all_true, y_all_pred = [], []
+        for test_year in years:
+            train = df[df["year"] != test_year]
+            test = df[df["year"] == test_year]
+            X_train = train[feature_cols].fillna(0.0)
+            y_train = train["kcact"].values
+            X_test = test[feature_cols].fillna(0.0)
+            y_test = test["kcact"].values
+
+            predictions = []
+            for mk_model in models_for_ensemble:
+                m = mk_model()
+                m.fit(X_train, y_train)
+                predictions.append(m.predict(X_test))
+            y_pred_avg = np.mean(predictions, axis=0)
+
+            m = evaluate(f"Ensemble_Avg({'/'.join(names_for_ensemble)})",
+                        y_test, y_pred_avg)
+            m["test_year"] = test_year
+            all_per_year.append(m)
+            y_all_true.extend(y_test)
+            y_all_pred.extend(y_pred_avg)
+
+        yt = np.array(y_all_true)
+        yp_all = np.array(y_all_pred)
+        overall = evaluate(f"Ensemble_Avg({'/'.join(names_for_ensemble)})",
+                          yt, yp_all)
+        overall["test_year"] = "pooled"
+        all_overall.append(overall)
+        print(f"  POOLED: R²={overall['r2']:.4f} RMSE={overall['rmse']:.4f} MAE={overall['mae']:.4f}")
 
     # ---- Summary ----
     print("\n=== Overall Summary ===")

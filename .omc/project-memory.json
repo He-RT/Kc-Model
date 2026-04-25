@@ -125,6 +125,12 @@
   },
   "hotPaths": [
     {
+      "path": "docs/plans/kcact_data_scaling_plan.md",
+      "accessCount": 7,
+      "lastAccessed": 1777058057077,
+      "type": "file"
+    },
+    {
       "path": "scripts/python/train_kcact_lstm.py",
       "accessCount": 6,
       "lastAccessed": 1777050193974,
@@ -132,8 +138,8 @@
     },
     {
       "path": "scripts/python/export_hebei_kcact_training_data.py",
-      "accessCount": 5,
-      "lastAccessed": 1777036025931,
+      "accessCount": 6,
+      "lastAccessed": 1777055210526,
       "type": "file"
     },
     {
@@ -155,6 +161,12 @@
       "type": "file"
     },
     {
+      "path": "scripts/python/export_modis_ndvi.py",
+      "accessCount": 3,
+      "lastAccessed": 1777055283449,
+      "type": "file"
+    },
+    {
       "path": "README.md",
       "accessCount": 2,
       "lastAccessed": 1777002724947,
@@ -170,6 +182,18 @@
       "path": "scripts/python/cross_validate_kcact_v2.py",
       "accessCount": 2,
       "lastAccessed": 1777053271745,
+      "type": "file"
+    },
+    {
+      "path": "scripts/python/run_cleaning_experiments.py",
+      "accessCount": 2,
+      "lastAccessed": 1777055062296,
+      "type": "file"
+    },
+    {
+      "path": "outputs/reports/kcact_data_cleaning_experiments.md",
+      "accessCount": 2,
+      "lastAccessed": 1777055103644,
       "type": "file"
     },
     {
@@ -254,6 +278,30 @@
       "path": "scripts/python/tune_kcact_xgb.py",
       "accessCount": 1,
       "lastAccessed": 1777050987352,
+      "type": "file"
+    },
+    {
+      "path": "scripts/python/compare_kcact_vs_etc_direct.py",
+      "accessCount": 1,
+      "lastAccessed": 1777054269239,
+      "type": "file"
+    },
+    {
+      "path": "scripts/python/merge_validate_modis_ndvi.py",
+      "accessCount": 1,
+      "lastAccessed": 1777055887189,
+      "type": "file"
+    },
+    {
+      "path": "outputs/reports/kcact_modis_ndvi_results.md",
+      "accessCount": 1,
+      "lastAccessed": 1777056079421,
+      "type": "file"
+    },
+    {
+      "path": "docs/handover.md",
+      "accessCount": 1,
+      "lastAccessed": 1777132435688,
       "type": "file"
     }
   ],
