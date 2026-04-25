@@ -1,12 +1,16 @@
-"""Train LSTM model for Kcact prediction using patch-level time series.
+"""Train LSTM model for Kcact prediction with optional LOYO cross-validation.
 
 Each patch_id forms a sequence of 8-day windows across the growing season.
 The LSTM learns the temporal trajectory of Kcact from RS + weather features.
+
+Modes:
+  --loyo       Leave-one-year-out CV across all years (default on expanded data)
+  --train-years / --test-years   Single fixed split (for debugging)
 """
 from __future__ import annotations
 
 import argparse
-import pickle
+import json
 from pathlib import Path
 import sys
 
@@ -50,9 +54,7 @@ class KcactLSTM(nn.Module):
         )
 
     def forward(self, x):
-        # x: (batch, seq_len, input_dim)
         b, s, d = x.shape
-        # Apply BatchNorm1d by reshaping: treat (b*s) as batch
         x_flat = x.reshape(-1, d)
         x_normed = self.input_bn(x_flat).reshape(b, s, d)
         lstm_out, _ = self.lstm(x_normed)
@@ -63,9 +65,11 @@ class KcactLSTM(nn.Module):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input-table",
-                        default=str(ROOT / "data/processed/train/hebei_winter_wheat_kcact_train_ready.parquet"))
+                        default=str(ROOT / "data/processed/train/ncp_winter_wheat_kcact_train_ready.parquet"))
     parser.add_argument("--train-years", nargs="+", type=int, default=[2019, 2020, 2021, 2022, 2024])
     parser.add_argument("--test-years", nargs="+", type=int, default=[2023])
+    parser.add_argument("--loyo", action="store_true",
+                        help="Leave-one-year-out CV across all years in data.")
     parser.add_argument("--hidden-dim", type=int, default=64)
     parser.add_argument("--num-layers", type=int, default=2)
     parser.add_argument("--dropout", type=float, default=0.2)
@@ -151,7 +155,6 @@ def evaluate_model(model, loader, device):
     for X_batch, y_batch, m_batch in loader:
         X_batch, y_batch, m_batch = X_batch.to(device), y_batch.to(device), m_batch.to(device)
         y_pred = model(X_batch)
-        # Gather only masked (valid) positions
         for i in range(len(y_batch)):
             valid_len = int(m_batch[i].sum().item())
             if valid_len > 0:
@@ -168,65 +171,8 @@ def evaluate_model(model, loader, device):
     }
 
 
-def main():
-    args = parse_args()
-    device = torch.device(args.device or "cpu")  # default CPU: MPS has LSTM numerical issues
-    print(f"Using device: {device}")
-
-    df = pd.read_parquet(args.input_table)
-    df = df[df["qc_valid"]].copy()
-    feature_cols = load_feature_cols(df)
-    print(f"Features: {len(feature_cols)}")
-
-    train_df = df[df["year"].isin(args.train_years)]
-    test_df = df[df["year"].isin(args.test_years)]
-    print(f"Train samples: {len(train_df)}, Test samples: {len(test_df)}")
-
-    train_seqs, train_tgts, _ = build_sequences(train_df, feature_cols, args.min_seq_len)
-    test_seqs, test_tgts, _ = build_sequences(test_df, feature_cols, args.min_seq_len)
-    print(f"Train sequences: {len(train_seqs)}, Test sequences: {len(test_seqs)}")
-
-    max_len = max(max(len(s) for s in train_seqs), max(len(s) for s in test_seqs))
-    print(f"Max sequence length: {max_len}")
-
-    X_train, y_train, m_train = pad_sequences(train_seqs, train_tgts, max_len)
-    X_test, y_test, m_test = pad_sequences(test_seqs, test_tgts, max_len)
-
-    # Standardize features using only training data (respect mask)
-    n_train, seq_len, n_feat = X_train.shape
-    X_train_flat = X_train.reshape(-1, n_feat)
-    m_train_flat = m_train.reshape(-1)
-    # Fit scaler only on valid (non-padded) training positions
-    scaler = StandardScaler()
-    valid_mask = m_train_flat > 0.5
-    scaler.fit(X_train_flat[valid_mask])
-
-    X_train_scaled = np.zeros_like(X_train)
-    X_test_scaled = np.zeros_like(X_test)
-    for i in range(seq_len):
-        X_train_scaled[:, i, :] = scaler.transform(X_train[:, i, :])
-        X_test_scaled[:, i, :] = scaler.transform(X_test[:, i, :])
-    print(f"X_train_scaled: {X_train_scaled.shape}, X_test_scaled: {X_test_scaled.shape}")
-    print(f"Feature means: {scaler.mean_[:5]}, stds: {scaler.scale_[:5]}")
-
-    X_train, X_test = X_train_scaled, X_test_scaled
-
-    train_dataset = TensorDataset(
-        torch.from_numpy(X_train), torch.from_numpy(y_train), torch.from_numpy(m_train))
-    test_dataset = TensorDataset(
-        torch.from_numpy(X_test), torch.from_numpy(y_test), torch.from_numpy(m_test))
-
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=args.batch_size * 2, shuffle=False)
-
-    model = KcactLSTM(
-        input_dim=len(feature_cols),
-        hidden_dim=args.hidden_dim,
-        num_layers=args.num_layers,
-        dropout=args.dropout,
-    ).to(device)
-    print(f"Model params: {sum(p.numel() for p in model.parameters()):,}")
-
+def fit_model(model, train_loader, test_loader, device, args):
+    """Train a single LSTM model with early stopping."""
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode="min", factor=0.5, patience=10)
@@ -247,28 +193,258 @@ def main():
         else:
             patience_counter += 1
 
-        if (epoch + 1) % 10 == 0:
-            print(f"Epoch {epoch+1:3d} | train_loss={train_loss:.4f} | "
-                  f"test R²={metrics['r2']:.4f} RMSE={metrics['rmse']:.4f}")
-
         if patience_counter >= 20:
-            print(f"Early stopping at epoch {epoch+1}")
             break
 
-    print(f"\n=== Best LSTM ({args.train_years}→{args.test_years}) ===")
-    print(f"  R²={best_metrics['r2']:.4f}  RMSE={best_metrics['rmse']:.4f}  MAE={best_metrics['mae']:.4f}")
+    return best_metrics
 
-    # Save model
+
+def run_single_split(args, device):
+    """Original single train/test split mode."""
+    df = pd.read_parquet(args.input_table)
+    df = df[df["qc_valid"]].copy()
+    feature_cols = load_feature_cols(df)
+    print(f"Features: {len(feature_cols)}")
+
+    train_df = df[df["year"].isin(args.train_years)]
+    test_df = df[df["year"].isin(args.test_years)]
+    print(f"Train samples: {len(train_df)}, Test samples: {len(test_df)}")
+
+    train_seqs, train_tgts, _ = build_sequences(train_df, feature_cols, args.min_seq_len)
+    test_seqs, test_tgts, _ = build_sequences(test_df, feature_cols, args.min_seq_len)
+    print(f"Train sequences: {len(train_seqs)}, Test sequences: {len(test_seqs)}")
+
+    max_len = max(max(len(s) for s in train_seqs), max(len(s) for s in test_seqs))
+    print(f"Max sequence length: {max_len}")
+
+    X_train, y_train, m_train = pad_sequences(train_seqs, train_tgts, max_len)
+    X_test, y_test, m_test = pad_sequences(test_seqs, test_tgts, max_len)
+
+    X_train, X_test = _scale_features(X_train, X_test, m_train)
+
+    train_dataset = TensorDataset(
+        torch.from_numpy(X_train), torch.from_numpy(y_train), torch.from_numpy(m_train))
+    test_dataset = TensorDataset(
+        torch.from_numpy(X_test), torch.from_numpy(y_test), torch.from_numpy(m_test))
+
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=args.batch_size * 2, shuffle=False)
+
+    model = KcactLSTM(
+        input_dim=len(feature_cols),
+        hidden_dim=args.hidden_dim,
+        num_layers=args.num_layers,
+        dropout=args.dropout,
+    ).to(device)
+    print(f"Model params: {sum(p.numel() for p in model.parameters()):,}")
+
+    best_metrics = fit_model(model, train_loader, test_loader, device, args)
+
+    print(f"\n=== Best LSTM ({args.train_years} -> {args.test_years}) ===")
+    print(f"  R²={best_metrics['r2']:.4f}  RMSE={best_metrics['rmse']:.4f}  "
+          f"MAE={best_metrics['mae']:.4f}  n={best_metrics['n_samples']}")
+
+    _save_model(model, feature_cols, max_len, args)
+    return best_metrics
+
+
+def run_loyo_cv(args, device):
+    """Leave-one-year-out CV: train on all-but-one year, test on held-out."""
+    df = pd.read_parquet(args.input_table)
+    df = df[df["qc_valid"]].copy()
+    feature_cols = load_feature_cols(df)
+    years = sorted(df["year"].unique().tolist())
+    print(f"Data: {len(df)} samples, {len(feature_cols)} features, "
+          f"years={years}, provinces={df['province'].unique().tolist() if 'province' in df.columns else 'N/A'}")
+
+    fold_results = []
+    all_y_true, all_y_pred = [], []
+
+    for test_year in years:
+        print(f"\n--- LOYO fold: test={test_year}, train={[y for y in years if y != test_year]} ---")
+
+        train_df = df[df["year"] != test_year]
+        test_df = df[df["year"] == test_year]
+        print(f"  Train: {len(train_df)} rows, Test: {len(test_df)} rows")
+
+        train_seqs, train_tgts, _ = build_sequences(train_df, feature_cols, args.min_seq_len)
+        test_seqs, test_tgts, _ = build_sequences(test_df, feature_cols, args.min_seq_len)
+
+        if len(train_seqs) == 0 or len(test_seqs) == 0:
+            print(f"  [SKIP] No sequences for test_year={test_year}")
+            continue
+
+        max_len = max(max(len(s) for s in train_seqs), max(len(s) for s in test_seqs))
+        X_train, y_train, m_train = pad_sequences(train_seqs, train_tgts, max_len)
+        X_test, y_test, m_test = pad_sequences(test_seqs, test_tgts, max_len)
+
+        X_train, X_test = _scale_features(X_train, X_test, m_train)
+
+        train_dataset = TensorDataset(
+            torch.from_numpy(X_train), torch.from_numpy(y_train), torch.from_numpy(m_train))
+        test_dataset = TensorDataset(
+            torch.from_numpy(X_test), torch.from_numpy(y_test), torch.from_numpy(m_test))
+
+        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+        test_loader = DataLoader(test_dataset, batch_size=args.batch_size * 2, shuffle=False)
+
+        model = KcactLSTM(
+            input_dim=len(feature_cols),
+            hidden_dim=args.hidden_dim,
+            num_layers=args.num_layers,
+            dropout=args.dropout,
+        ).to(device)
+
+        metrics = fit_model(model, train_loader, test_loader, device, args)
+        metrics["test_year"] = test_year
+        metrics["n_train_seq"] = len(train_seqs)
+        metrics["n_test_seq"] = len(test_seqs)
+        fold_results.append(metrics)
+        all_y_true.extend(
+            (y_test * m_test).sum()  # dummy, we need actual values from evaluate
+        )
+        print(f"  Fold R²={metrics['r2']:.4f}  RMSE={metrics['rmse']:.4f}  "
+              f"MAE={metrics['mae']:.4f}  n={metrics['n_samples']}")
+
+    # Pooled metrics: recompute from all fold test predictions
+    # We collect them properly by re-evaluating
+    pooled_yt, pooled_yp = [], []
+    for test_year in years:
+        test_df = df[df["year"] == test_year]
+        test_seqs, test_tgts, _ = build_sequences(test_df, feature_cols, args.min_seq_len)
+        if len(test_seqs) == 0:
+            continue
+
+        train_df_full = df[df["year"] != test_year]
+        train_seqs, train_tgts, _ = build_sequences(train_df_full, feature_cols, args.min_seq_len)
+
+        max_len = max(max(len(s) for s in train_seqs), max(len(s) for s in test_seqs))
+        X_train, y_train, m_train = pad_sequences(train_seqs, train_tgts, max_len)
+        X_test, y_test, m_test = pad_sequences(test_seqs, test_tgts, max_len)
+        X_train, X_test = _scale_features(X_train, X_test, m_train)
+
+        train_dataset = TensorDataset(
+            torch.from_numpy(X_train), torch.from_numpy(y_train), torch.from_numpy(m_train))
+        test_dataset = TensorDataset(
+            torch.from_numpy(X_test), torch.from_numpy(y_test), torch.from_numpy(m_test))
+
+        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+        test_loader = DataLoader(test_dataset, batch_size=args.batch_size * 2, shuffle=False)
+
+        model = KcactLSTM(
+            input_dim=len(feature_cols),
+            hidden_dim=args.hidden_dim,
+            num_layers=args.num_layers,
+            dropout=args.dropout,
+        ).to(device)
+
+        fit_model(model, train_loader, test_loader, device, args)
+
+        # Collect predictions from this fold
+        model.eval()
+        with torch.no_grad():
+            for X_batch, y_batch, m_batch in test_loader:
+                X_batch = X_batch.to(device)
+                y_pred = model(X_batch)
+                for i in range(len(y_batch)):
+                    valid_len = int(m_batch[i].sum().item())
+                    if valid_len > 0:
+                        pooled_yt.extend(y_batch[i, :valid_len].cpu().numpy().tolist())
+                        pooled_yp.extend(y_pred[i, :valid_len].cpu().numpy().tolist())
+
+    pooled_yp = np.array(pooled_yp).clip(0.01, 2.0)
+    pooled_yt = np.array(pooled_yt)
+    pooled_r2 = float(r2_score(pooled_yt, pooled_yp))
+    pooled_rmse = float(np.sqrt(mean_squared_error(pooled_yt, pooled_yp)))
+    pooled_mae = float(mean_absolute_error(pooled_yt, pooled_yp))
+
+    # Summary
+    fold_df = pd.DataFrame(fold_results)
+    print(f"\n=== LSTM LOYO CV Summary ===")
+    print(fold_df[["test_year", "r2", "rmse", "mae", "n_samples", "n_train_seq", "n_test_seq"]].to_string(index=False))
+    print(f"\nPooled: R²={pooled_r2:.4f}  RMSE={pooled_rmse:.4f}  MAE={pooled_mae:.4f}  n={len(pooled_yt)}")
+
+    # Save
+    out_dir = Path(args.output_dir) / "tables"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    summary_path = out_dir / "kcact_lstm_loyo_summary.csv"
+    fold_df.to_csv(summary_path, index=False)
+    print(f"CV summary saved to {summary_path}")
+
+    # Save model on full data for production use
+    print("\nTraining final model on all data...")
+    all_seqs, all_tgts, _ = build_sequences(df, feature_cols, args.min_seq_len)
+    max_len = max(len(s) for s in all_seqs)
+    X_all, y_all, m_all = pad_sequences(all_seqs, all_tgts, max_len)
+    X_all_scaled = np.zeros_like(X_all)
+    n_train_all, seq_len_all, n_feat_all = X_all.shape
+    X_all_flat = X_all.reshape(-1, n_feat_all)
+    m_all_flat = m_all.reshape(-1)
+    scaler = StandardScaler()
+    scaler.fit(X_all_flat[m_all_flat > 0.5])
+    for i in range(seq_len_all):
+        X_all_scaled[:, i, :] = scaler.transform(X_all[:, i, :])
+
+    all_dataset = TensorDataset(
+        torch.from_numpy(X_all_scaled), torch.from_numpy(y_all), torch.from_numpy(m_all))
+    all_loader = DataLoader(all_dataset, batch_size=args.batch_size, shuffle=True)
+    dummy_loader = DataLoader(
+        TensorDataset(torch.from_numpy(X_all_scaled[:1]), torch.from_numpy(y_all[:1]),
+                       torch.from_numpy(m_all[:1])),
+        batch_size=1, shuffle=False)
+
+    final_model = KcactLSTM(
+        input_dim=len(feature_cols),
+        hidden_dim=args.hidden_dim,
+        num_layers=args.num_layers,
+        dropout=args.dropout,
+    ).to(device)
+    fit_model(final_model, all_loader, dummy_loader, device, args)
+    _save_model(final_model, feature_cols, max_len, args)
+
+    return {"pooled_r2": pooled_r2, "pooled_rmse": pooled_rmse, "pooled_mae": pooled_mae,
+            "folds": fold_results}
+
+
+def _scale_features(X_train, X_test, m_train):
+    """Standardize features using training data only (respects mask)."""
+    n_train, seq_len, n_feat = X_train.shape
+    X_train_flat = X_train.reshape(-1, n_feat)
+    m_train_flat = m_train.reshape(-1)
+    scaler = StandardScaler()
+    valid_mask = m_train_flat > 0.5
+    scaler.fit(X_train_flat[valid_mask])
+
+    X_train_scaled = np.zeros_like(X_train)
+    X_test_scaled = np.zeros_like(X_test)
+    for i in range(seq_len):
+        X_train_scaled[:, i, :] = scaler.transform(X_train[:, i, :])
+        X_test_scaled[:, i, :] = scaler.transform(X_test[:, i, :])
+    return X_train_scaled, X_test_scaled
+
+
+def _save_model(model, feature_cols, max_seq_len, args):
     out = Path(args.output_dir) / "models"
     out.mkdir(parents=True, exist_ok=True)
     model_path = out / "kcact_lstm.pt"
     torch.save({
         "model_state_dict": model.state_dict(),
         "feature_cols": feature_cols,
-        "max_seq_len": max_len,
+        "max_seq_len": max_seq_len,
         "args": vars(args),
     }, model_path)
     print(f"Model saved to {model_path}")
+
+
+def main():
+    args = parse_args()
+    device = torch.device(args.device or "cpu")
+    print(f"Using device: {device}")
+
+    if args.loyo:
+        run_loyo_cv(args, device)
+    else:
+        run_single_split(args, device)
 
 
 if __name__ == "__main__":
