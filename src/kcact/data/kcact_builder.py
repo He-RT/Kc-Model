@@ -31,19 +31,30 @@ def aggregate_daily_weather_to_mod16_windows(
     mod16_df: pd.DataFrame,
     gdd_base_c: float = 0.0,
 ) -> pd.DataFrame:
+    """Aggregate daily ERA5 weather to MOD16 8-day windows.
+
+    Processes one unique 8-day window at a time to keep memory low.
+    MOD16 windows are identical across patches, so we iterate over ~161
+    unique windows rather than doing a cross-join per patch_id.
+    """
     weather = _normalize_patch_id(era5_daily_df)
     weather["date"] = pd.to_datetime(weather["date"])
     weather["gdd_daily"] = np.maximum(weather["tmean_c"] - gdd_base_c, 0.0)
 
-    windows = _normalize_patch_id(mod16_df)[["patch_id", "date_start", "date_end", "date"]].copy()
+    windows = _normalize_patch_id(mod16_df)[
+        ["patch_id", "date_start", "date_end", "date"]
+    ].copy()
     windows["date_start"] = pd.to_datetime(windows["date_start"])
     windows["date_end"] = pd.to_datetime(windows["date_end"])
     windows["date"] = pd.to_datetime(windows["date"])
     windows = windows.drop_duplicates()
 
-    joined = weather.merge(windows, on="patch_id", how="inner")
-    joined = joined[(joined["date_x"] >= joined["date_start"]) & (joined["date_x"] < joined["date_end"])].copy()
-    joined = joined.rename(columns={"date_x": "weather_date", "date_y": "window_date"})
+    # Build patch_id → set of valid dates for fast lookup
+    patch_window_dates = windows.groupby("patch_id")["date"].apply(set).to_dict()
+
+    # Unique (date_start, date_end, date) across all patches (~161 windows)
+    unique_win = windows[["date_start", "date_end", "date"]].drop_duplicates()
+    unique_win = unique_win.sort_values("date_start").reset_index(drop=True)
 
     agg_spec = {
         "et0_pm_8d_mm": ("et0_pm_mm", "sum"),
@@ -60,16 +71,47 @@ def aggregate_daily_weather_to_mod16_windows(
         "centroid_lat": ("centroid_lat", "first"),
         "centroid_lon": ("centroid_lon", "first"),
     }
-    for opt_col in ["area_ha", "elevation_m"]:
-        if opt_col in joined.columns:
-            agg_spec[opt_col] = (opt_col, "first")
 
-    aggregated = (
-        joined.groupby(["patch_id", "date_start", "date_end", "window_date"], as_index=False)
-        .agg(**agg_spec)
-        .rename(columns={"window_date": "date"})
-    )
-    return aggregated
+    aggregated_frames = []
+    n_win = len(unique_win)
+    for i, (_, win_row) in enumerate(unique_win.iterrows()):
+        w_start = win_row["date_start"]
+        w_end = win_row["date_end"]
+        w_date = win_row["date"]
+
+        # Filter weather rows within this 8-day window
+        in_window = weather[
+            (weather["date"] >= w_start) & (weather["date"] < w_end)
+        ].copy()
+        if len(in_window) == 0:
+            continue
+
+        # Only keep patches that have this MOD16 window
+        valid_patches = {pid for pid, dates in patch_window_dates.items() if w_date in dates}
+        in_window = in_window[in_window["patch_id"].isin(valid_patches)]
+
+        if len(in_window) == 0:
+            continue
+
+        # Add window metadata
+        in_window["date_start"] = w_start
+        in_window["date_end"] = w_end
+        in_window["window_date"] = w_date
+
+        # Aggregate per patch
+        agged = (
+            in_window.groupby(["patch_id", "date_start", "date_end", "window_date"], as_index=False)
+            .agg(**agg_spec)
+        )
+        aggregated_frames.append(agged)
+        del in_window, agged
+
+    if not aggregated_frames:
+        return pd.DataFrame()
+
+    result = pd.concat(aggregated_frames, ignore_index=True)
+    result = result.rename(columns={"window_date": "date"})
+    return result
 
 
 def prepare_mod16_etc(mod16_df: pd.DataFrame) -> pd.DataFrame:
