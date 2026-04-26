@@ -145,7 +145,7 @@ def prepare_s2_features(s2_df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
+def add_temporal_features(df: pd.DataFrame, crop_type: str = "winter_wheat") -> pd.DataFrame:
     result = df.sort_values(["patch_id", "date"]).copy()
 
     # Idempotent: skip if already computed
@@ -191,31 +191,36 @@ def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
     # the dormancy floor by a clear margin and is still rising.
     # This replaces the fixed Oct-1 season reference with a data-driven one.
 
+    is_wheat = crop_type == "winter_wheat"
+
     def _detect_greenup(grp: pd.DataFrame) -> pd.Series:
         grp = grp.sort_values("doy")
         ndvi = grp["ndvi"].values
         doy = grp["doy"].values
         n = len(ndvi)
 
-        # Dormancy window: doy 1–90 (Jan–Mar)
-        dorm_mask = doy <= 90
-        dorm_ndvi = ndvi[dorm_mask] if dorm_mask.any() else ndvi[:max(1, n // 4)]
-        winter_min = float(dorm_ndvi.min())
-
-        # Greenup onset: first window after dormancy minimum where
-        # NDVI > winter_min + 0.10 AND the following window is higher
-        greenup_idx = n
-        min_idx = int(np.argmin(ndvi[dorm_mask]) if dorm_mask.any() else 0)
-        if not dorm_mask.any():
+        if is_wheat:
+            # Wheat: find winter dormancy minimum (doy 1-90), then greenup
+            dorm_mask = doy <= 90
+            dorm_ndvi = ndvi[dorm_mask] if dorm_mask.any() else ndvi[:max(1, n // 4)]
+            baseline = float(dorm_ndvi.min())
+            min_idx = int(np.argmin(ndvi[dorm_mask]) if dorm_mask.any() else 0)
+            threshold = baseline + 0.10
+        else:
+            # Summer maize: no dormancy. Baseline is early-season minimum.
+            # Find first NDVI > 0.30 that keeps rising (germination->vegetative)
+            baseline = float(ndvi[:max(1, n // 3)].min())
             min_idx = 0
+            threshold = 0.30
 
+        greenup_idx = n
         for i in range(min_idx, n - 1):
-            if ndvi[i] > winter_min + 0.10 and ndvi[i + 1] > ndvi[i]:
+            if ndvi[i] > threshold and ndvi[i + 1] > ndvi[i]:
                 greenup_idx = i
                 break
 
-        greenup_doy = float(doy[greenup_idx]) if greenup_idx < n else 91.0
-        greenup_ndvi = float(ndvi[greenup_idx]) if greenup_idx < n else float(winter_min)
+        greenup_doy = float(doy[greenup_idx]) if greenup_idx < n else (91.0 if is_wheat else 170.0)
+        greenup_ndvi = float(ndvi[greenup_idx]) if greenup_idx < n else float(baseline)
         greenup_gdd = float(grp["gdd_8d"].iloc[:greenup_idx+1].sum()) if greenup_idx < n else 0.0
 
         return pd.Series({
@@ -344,7 +349,7 @@ def build_training_table(
             merged[static_col] = merged[static_col].fillna(merged[f"{static_col}_weather"])
     merged["province"] = province
     merged["crop_type"] = crop_type
-    merged = add_temporal_features(merged)
+    merged = add_temporal_features(merged, crop_type=crop_type)
     merged = quality_control(merged)
 
     valid = merged[merged["qc_valid"]].copy()
