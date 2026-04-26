@@ -147,6 +147,11 @@ def prepare_s2_features(s2_df: pd.DataFrame) -> pd.DataFrame:
 
 def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
     result = df.sort_values(["patch_id", "date"]).copy()
+
+    # Idempotent: skip if already computed
+    if "greenup_doy" in result.columns:
+        return result
+
     result["year"] = result["date"].dt.year
     result["doy"] = result["date"].dt.dayofyear
 
@@ -180,16 +185,75 @@ def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
         if "lswi" in result.columns:
             result["lswi_vpd"] = result["lswi"] * result["vpd_kpa_mean_8d"]
 
-    # Phenology features — tell the model where each window sits in the season
-    # Winter wheat: planting ~Oct 1 (doy 274), harvest ~end of Jul (doy ~210)
+    # ---- Per-patch greenup onset detection ----
+    # Winter wheat: find the NDVI minimum in the dormancy period (doy 0-90,
+    # ~Jan–Mar), then the first window after the minimum where NDVI exceeds
+    # the dormancy floor by a clear margin and is still rising.
+    # This replaces the fixed Oct-1 season reference with a data-driven one.
+
+    def _detect_greenup(grp: pd.DataFrame) -> pd.Series:
+        grp = grp.sort_values("doy")
+        ndvi = grp["ndvi"].values
+        doy = grp["doy"].values
+        n = len(ndvi)
+
+        # Dormancy window: doy 1–90 (Jan–Mar)
+        dorm_mask = doy <= 90
+        dorm_ndvi = ndvi[dorm_mask] if dorm_mask.any() else ndvi[:max(1, n // 4)]
+        winter_min = float(dorm_ndvi.min())
+
+        # Greenup onset: first window after dormancy minimum where
+        # NDVI > winter_min + 0.10 AND the following window is higher
+        greenup_idx = n
+        min_idx = int(np.argmin(ndvi[dorm_mask]) if dorm_mask.any() else 0)
+        if not dorm_mask.any():
+            min_idx = 0
+
+        for i in range(min_idx, n - 1):
+            if ndvi[i] > winter_min + 0.10 and ndvi[i + 1] > ndvi[i]:
+                greenup_idx = i
+                break
+
+        greenup_doy = float(doy[greenup_idx]) if greenup_idx < n else 91.0
+        greenup_ndvi = float(ndvi[greenup_idx]) if greenup_idx < n else float(winter_min)
+        greenup_gdd = float(grp["gdd_8d"].iloc[:greenup_idx+1].sum()) if greenup_idx < n else 0.0
+
+        return pd.Series({
+            "greenup_doy": greenup_doy,
+            "greenup_ndvi": greenup_ndvi,
+            "greenup_gdd_cum": greenup_gdd,
+        })
+
+    greenup_lookup = result.groupby("patch_id").apply(_detect_greenup).reset_index()
+    result = result.merge(greenup_lookup, on="patch_id", how="left")
+    result["days_since_greenup"] = result["doy"] - result["greenup_doy"]
+    result["gdd_since_greenup"] = result.groupby("patch_id")["gdd_8d"].cumsum() - result["greenup_gdd_cum"]
+    del result["greenup_gdd_cum"]
+
+    # ---- Phenology features (greenup-referenced) ----
+    # days_since_greenup: 0 at greenup, negative before (dormancy),
+    # positive during growth/senescence. Clipped to avoid extreme values.
+    result["days_since_greenup"] = result["days_since_greenup"].clip(-90, 250)
+
+    # Keep old doy_season for backward compatibility (still useful as calendar ref)
     result["doy_season"] = np.where(
         result["doy"] >= 274, result["doy"] - 274, result["doy"] + 91
-    )  # days since Oct 1, continuous 0→302
+    )
 
-    # GDD fraction: how much of this patch's total heat accumulation so far
+    result["gdd_since_greenup"] = result["gdd_since_greenup"].clip(lower=0.0)
+
+    # GDD fraction: heat accumulation relative to patch total (kept)
     patch_gdd_total = result.groupby("patch_id")["gdd_cum"].transform("max")
     result["gdd_frac"] = np.where(
         patch_gdd_total > 0, result["gdd_cum"] / patch_gdd_total, 0.0
+    )
+
+    # GDD fraction since greenup
+    patch_gdd_greenup_total = result.groupby("patch_id")["gdd_since_greenup"].transform("max")
+    result["gdd_frac_greenup"] = np.where(
+        patch_gdd_greenup_total > 0,
+        result["gdd_since_greenup"] / patch_gdd_greenup_total,
+        0.0,
     )
 
     # NDVI relative position within each patch's observed range
@@ -210,6 +274,9 @@ def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
         result["vpd_sq"] = vpd ** 2
         result["vpd_doy_season"] = vpd * result["doy_season"]
         result["vpd_gdd_frac"] = vpd * result["gdd_frac"]
+        # Greenup-referenced interactions
+        result["vpd_days_greenup"] = vpd * result["days_since_greenup"]
+        result["vpd_gdd_frac_greenup"] = vpd * result["gdd_frac_greenup"]
 
     # Days since peak NDVI — signals senescence depth
     patch_ndvi_cummax_idx = result.groupby("patch_id")["ndvi"].transform(
