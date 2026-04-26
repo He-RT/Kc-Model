@@ -258,7 +258,6 @@ def run_loyo_cv(args, device):
           f"years={years}, provinces={df['province'].unique().tolist() if 'province' in df.columns else 'N/A'}")
 
     fold_results = []
-    all_y_true, all_y_pred = [], []
 
     for test_year in years:
         print(f"\n--- LOYO fold: test={test_year}, train={[y for y in years if y != test_year]} ---")
@@ -300,63 +299,20 @@ def run_loyo_cv(args, device):
         metrics["n_train_seq"] = len(train_seqs)
         metrics["n_test_seq"] = len(test_seqs)
         fold_results.append(metrics)
-        all_y_true.extend(
-            (y_test * m_test).sum()  # dummy, we need actual values from evaluate
-        )
         print(f"  Fold R²={metrics['r2']:.4f}  RMSE={metrics['rmse']:.4f}  "
               f"MAE={metrics['mae']:.4f}  n={metrics['n_samples']}")
 
-    # Pooled metrics: recompute from all fold test predictions
-    # We collect them properly by re-evaluating
-    pooled_yt, pooled_yp = [], []
-    for test_year in years:
-        test_df = df[df["year"] == test_year]
-        test_seqs, test_tgts, _ = build_sequences(test_df, feature_cols, args.min_seq_len)
-        if len(test_seqs) == 0:
-            continue
+    # Pooled metrics: weighted average of per-fold R² by sample count
+    if not fold_results:
+        print("No folds completed.")
+        return {}
 
-        train_df_full = df[df["year"] != test_year]
-        train_seqs, train_tgts, _ = build_sequences(train_df_full, feature_cols, args.min_seq_len)
-
-        max_len = max(max(len(s) for s in train_seqs), max(len(s) for s in test_seqs))
-        X_train, y_train, m_train = pad_sequences(train_seqs, train_tgts, max_len)
-        X_test, y_test, m_test = pad_sequences(test_seqs, test_tgts, max_len)
-        X_train, X_test = _scale_features(X_train, X_test, m_train)
-
-        train_dataset = TensorDataset(
-            torch.from_numpy(X_train), torch.from_numpy(y_train), torch.from_numpy(m_train))
-        test_dataset = TensorDataset(
-            torch.from_numpy(X_test), torch.from_numpy(y_test), torch.from_numpy(m_test))
-
-        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-        test_loader = DataLoader(test_dataset, batch_size=args.batch_size * 2, shuffle=False)
-
-        model = KcactLSTM(
-            input_dim=len(feature_cols),
-            hidden_dim=args.hidden_dim,
-            num_layers=args.num_layers,
-            dropout=args.dropout,
-        ).to(device)
-
-        fit_model(model, train_loader, test_loader, device, args)
-
-        # Collect predictions from this fold
-        model.eval()
-        with torch.no_grad():
-            for X_batch, y_batch, m_batch in test_loader:
-                X_batch = X_batch.to(device)
-                y_pred = model(X_batch)
-                for i in range(len(y_batch)):
-                    valid_len = int(m_batch[i].sum().item())
-                    if valid_len > 0:
-                        pooled_yt.extend(y_batch[i, :valid_len].cpu().numpy().tolist())
-                        pooled_yp.extend(y_pred[i, :valid_len].cpu().numpy().tolist())
-
-    pooled_yp = np.array(pooled_yp).clip(0.01, 2.0)
-    pooled_yt = np.array(pooled_yt)
-    pooled_r2 = float(r2_score(pooled_yt, pooled_yp))
-    pooled_rmse = float(np.sqrt(mean_squared_error(pooled_yt, pooled_yp)))
-    pooled_mae = float(mean_absolute_error(pooled_yt, pooled_yp))
+    total_n = sum(m["n_samples"] for m in fold_results)
+    pooled_r2 = sum(m["r2"] * m["n_samples"] for m in fold_results) / total_n if total_n > 0 else 0
+    pooled_rmse = np.sqrt(
+        sum(m["rmse"]**2 * m["n_samples"] for m in fold_results) / total_n
+    ) if total_n > 0 else 0
+    pooled_mae = sum(m["mae"] * m["n_samples"] for m in fold_results) / total_n if total_n > 0 else 0
 
     # Summary
     fold_df = pd.DataFrame(fold_results)
