@@ -318,7 +318,7 @@ def run_loyo_cv(args, device):
     fold_df = pd.DataFrame(fold_results)
     print(f"\n=== LSTM LOYO CV Summary ===")
     print(fold_df[["test_year", "r2", "rmse", "mae", "n_samples", "n_train_seq", "n_test_seq"]].to_string(index=False))
-    print(f"\nPooled: R²={pooled_r2:.4f}  RMSE={pooled_rmse:.4f}  MAE={pooled_mae:.4f}  n={len(pooled_yt)}")
+    print(f"\nPooled: R²={pooled_r2:.4f}  RMSE={pooled_rmse:.4f}  MAE={pooled_mae:.4f}  n={total_n}")
 
     # Save
     out_dir = Path(args.output_dir) / "tables"
