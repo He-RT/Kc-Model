@@ -36,6 +36,8 @@ try:
 except ImportError:
     HAS_CATBOOST = False
 
+from kcact.utils.gpu import get_gpu_config, make_catboost_params, get_optuna_parallelism
+
 
 def load_feature_cols(df: pd.DataFrame) -> list[str]:
     return [
@@ -51,13 +53,13 @@ def r2_manual(y_true: np.ndarray, y_pred: np.ndarray) -> float:
 
 
 def build_model(params: dict) -> CatBoostRegressor:
-    return CatBoostRegressor(
-        loss_function="RMSE",
-        random_seed=42,
-        thread_count=-1,
-        verbose=0,
-        **params,
-    )
+    gpu_params = make_catboost_params()
+    merged = {**gpu_params, "loss_function": "RMSE", "random_seed": 42, "verbose": 0}
+    merged.update(params)
+    # GPU default Bayesian bootstrap doesn't support subsample
+    if "subsample" in merged and "bootstrap_type" not in merged:
+        merged["bootstrap_type"] = "Bernoulli"
+    return CatBoostRegressor(**merged)
 
 
 def loyo_objective(trial, df: pd.DataFrame, feature_cols: list[str], years: list[int]) -> float:
@@ -136,6 +138,11 @@ def main() -> None:
         return
 
     n_trials = 3 if args.smoke else args.n_trials
+
+    cfg = get_gpu_config()
+    print(cfg.summary())
+    optuna_cfg = get_optuna_parallelism(cfg)
+    print(f"Optuna workers: {optuna_cfg['n_jobs']}")
 
     df = pd.read_parquet(INPUT_TABLE)
     df = df[df["qc_valid"]].copy()

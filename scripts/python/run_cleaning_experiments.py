@@ -14,8 +14,14 @@ import pandas as pd
 from catboost import CatBoostRegressor
 from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 from pathlib import Path
+import sys
 
 ROOT = Path("/Users/hert/Projects/dcsdxx")
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
+from kcact.utils.gpu import get_gpu_config, make_catboost_params
 INPUT_TABLE = ROOT / "data/processed/train/hebei_winter_wheat_kcact_train_ready.parquet"
 OUTPUT_MD = ROOT / "outputs/reports/kcact_data_cleaning_experiments.md"
 
@@ -33,9 +39,9 @@ def load_feature_cols(df):
 
 
 def make_catboost():
-    return CatBoostRegressor(
-        iterations=500, depth=6, learning_rate=0.05,
-        random_seed=42, verbose=0, thread_count=-1)
+    return CatBoostRegressor(**make_catboost_params(extra={
+        "iterations": 500, "depth": 6, "learning_rate": 0.05,
+        "random_seed": 42, "verbose": 0}))
 
 
 def ndvi_stage(ndvi):
@@ -228,6 +234,8 @@ def build_markdown(baseline_res, strict_qc_res, smooth_res, df_full, df_strict):
 
 
 def main():
+    cfg = get_gpu_config()
+    print(cfg.summary())
     # ---- Load data ----
     df_all = pd.read_parquet(INPUT_TABLE)
     df_all = df_all[df_all["qc_valid"]].copy()

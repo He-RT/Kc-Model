@@ -21,6 +21,8 @@ EXCLUDE_COLS = {
     "etc_8d_mm", "et0_pm_8d_mm", "qc_mod16",
 }
 
+from kcact.utils.gpu import get_gpu_config, make_xgb_params
+
 try:
     import optuna
     HAS_OPTUNA = True
@@ -39,7 +41,7 @@ def load_feature_cols(df: pd.DataFrame) -> list[str]:
             if col not in EXCLUDE_COLS and col != "year"]
 
 
-def loyo_objective(trial, df, feature_cols, years):
+def loyo_objective(trial, df, feature_cols, years, cfg):
     """Optuna objective: mean LOYO R² across all years."""
     folds_r2 = []
     for test_year in years:
@@ -54,6 +56,7 @@ def loyo_objective(trial, df, feature_cols, years):
         y_test = test["kcact"]
 
         params = {
+            **make_xgb_params(cfg),
             "n_estimators": trial.suggest_int("n_estimators", 200, 800, step=100),
             "max_depth": trial.suggest_int("max_depth", 4, 12),
             "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.2, log=True),
@@ -62,7 +65,7 @@ def loyo_objective(trial, df, feature_cols, years):
             "reg_alpha": trial.suggest_float("reg_alpha", 1e-3, 10.0, log=True),
             "reg_lambda": trial.suggest_float("reg_lambda", 1e-3, 10.0, log=True),
             "min_child_weight": trial.suggest_int("min_child_weight", 1, 20),
-            "random_state": 42, "n_jobs": -1,
+            "random_state": 42,
         }
         model = xgb.XGBRegressor(**params)
         model.fit(X_train, y_train)
@@ -80,6 +83,10 @@ def main():
         print("XGBoost not installed.")
         return
 
+    cfg = get_gpu_config()
+    print(cfg.summary())
+    print()
+
     df = pd.read_parquet(INPUT_TABLE)
     df = df[df["qc_valid"]].copy()
     feature_cols = load_feature_cols(df)
@@ -93,7 +100,7 @@ def main():
         print("\nRunning Optuna hyperparameter optimization (50 trials)...")
         study = optuna.create_study(direction="maximize")
         study.optimize(
-            lambda trial: loyo_objective(trial, df, feature_cols, years),
+            lambda trial: loyo_objective(trial, df, feature_cols, years, cfg),
             n_trials=50, show_progress_bar=True,
         )
         best = study.best_params
@@ -125,10 +132,10 @@ def main():
         X_train = train[feature_cols].fillna(0.0)
         y_train = train["kcact"]
 
-        model = xgb.XGBRegressor(random_state=42, n_jobs=-1)
+        model = xgb.XGBRegressor(random_state=42, **make_xgb_params(cfg))
         search = RandomizedSearchCV(
             model, param_dist, n_iter=50, cv=3, scoring="r2",
-            random_state=42, n_jobs=-1, verbose=1,
+            random_state=42, n_jobs=cfg.optimal_n_jobs, verbose=1,
         )
         search.fit(X_train, y_train)
         print(f"\nBest R²: {search.best_score_:.4f}")

@@ -25,6 +25,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import xgboost as xgb
 from catboost import CatBoostRegressor
 from lightgbm import LGBMRegressor
+from kcact.utils.gpu import get_gpu_config, make_xgb_params, make_catboost_params, make_lgbm_params
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -66,31 +67,23 @@ def evaluate(name: str, y_true: np.ndarray, y_pred: np.ndarray) -> dict:
 def make_base_models() -> dict[str, object]:
     return {
         "xgb": xgb.XGBRegressor(
-            n_estimators=300,
-            max_depth=6,
-            learning_rate=0.05,
-            subsample=0.8,
-            colsample_bytree=0.8,
-            random_state=42,
-            n_jobs=-1,
+            **make_xgb_params(extra={
+                "n_estimators": 300, "max_depth": 6, "learning_rate": 0.05,
+                "subsample": 0.8, "colsample_bytree": 0.8, "random_state": 42,
+            })
         ),
         "catboost": CatBoostRegressor(
-            iterations=500,
-            depth=6,
-            learning_rate=0.05,
-            random_seed=42,
-            verbose=0,
-            thread_count=-1,
+            **make_catboost_params(extra={
+                "iterations": 500, "depth": 6, "learning_rate": 0.05,
+                "random_seed": 42, "verbose": 0,
+            })
         ),
         "lgbm": LGBMRegressor(
-            n_estimators=300,
-            max_depth=6,
-            learning_rate=0.05,
-            subsample=0.8,
-            colsample_bytree=0.8,
-            random_state=42,
-            n_jobs=-1,
-            verbose=-1,
+            **make_lgbm_params(extra={
+                "n_estimators": 300, "max_depth": 6, "learning_rate": 0.05,
+                "subsample": 0.8, "colsample_bytree": 0.8,
+                "random_state": 42, "verbose": -1,
+            })
         ),
     }
 
@@ -162,6 +155,9 @@ def main() -> None:
     print(f"Years: {years}")
     print(f"Features ({len(feature_cols)}): {', '.join(sorted(feature_cols))}")
     print(f"Total valid samples: {len(df)}")
+
+    cfg = get_gpu_config()
+    print(cfg.summary())
 
     all_results: list[dict] = []
     pooled_true: list[float] = []

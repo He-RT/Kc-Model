@@ -33,6 +33,8 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from kcact.utils.gpu import get_gpu_config, make_xgb_params, make_catboost_params
+
 INPUT_TABLE = ROOT / "data/processed/train/hebei_winter_wheat_kcact_train_ready.parquet"
 OUTPUT_DIR = ROOT / "outputs"
 
@@ -71,20 +73,22 @@ def evaluate(name, y_true, y_pred):
 
 def make_model(model_type):
     if model_type == "xgb":
-        return xgb.XGBRegressor(
-            n_estimators=200, max_depth=6, learning_rate=0.05,
-            subsample=0.8, colsample_bytree=0.8,
-            random_state=42, n_jobs=-1)
+        return xgb.XGBRegressor(**make_xgb_params(extra={
+            "n_estimators": 200, "max_depth": 6, "learning_rate": 0.05,
+            "subsample": 0.8, "colsample_bytree": 0.8,
+            "random_state": 42}))
     elif model_type == "catboost":
-        return CatBoostRegressor(
-            iterations=500, depth=6, learning_rate=0.05,
-            random_seed=42, verbose=0, thread_count=-1)
+        return CatBoostRegressor(**make_catboost_params(extra={
+            "iterations": 500, "depth": 6, "learning_rate": 0.05,
+            "random_seed": 42, "verbose": 0}))
 
 
 STAGES = ["early", "mid", "late"]
 
 
 def main():
+    cfg = get_gpu_config()
+    print(cfg.summary())
     df = pd.read_parquet(INPUT_TABLE)
     df = df[df["qc_valid"]].copy()
     feature_cols = load_feature_cols(df)

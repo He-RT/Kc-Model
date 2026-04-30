@@ -27,6 +27,14 @@ except ImportError:
     HAS_XGB = False
 
 
+ROOT = Path(__file__).resolve().parents[2]
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
+from kcact.utils.gpu import get_gpu_config, make_xgb_params
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train Kcact baseline models.")
     parser.add_argument(
@@ -100,10 +108,10 @@ def train_rf(X_train, y_train, X_test, y_test):
 def train_xgb(X_train, y_train, X_test, y_test):
     if not HAS_XGB:
         return None, None, None
-    model = xgb.XGBRegressor(
-        n_estimators=200, max_depth=6, learning_rate=0.05,
-        subsample=0.8, colsample_bytree=0.8, random_state=42, n_jobs=-1,
-    )
+    model = xgb.XGBRegressor(**make_xgb_params(extra={
+        "n_estimators": 200, "max_depth": 6, "learning_rate": 0.05,
+        "subsample": 0.8, "colsample_bytree": 0.8, "random_state": 42,
+    }))
     model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
     metrics = evaluate("XGBoost", y_test, y_pred)
@@ -116,6 +124,8 @@ def train_xgb(X_train, y_train, X_test, y_test):
 
 def main() -> None:
     args = parse_args()
+    cfg = get_gpu_config()
+    print(cfg.summary())
     X_train, y_train, X_test, y_test, feature_cols = load_and_split(
         args.input_table, args.train_years, args.test_years,
     )

@@ -11,8 +11,14 @@ from catboost import CatBoostRegressor
 from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 from pathlib import Path
 import glob
+import sys
 
 ROOT = Path("/Users/hert/Projects/dcsdxx")
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
+from kcact.utils.gpu import get_gpu_config, make_catboost_params
 INPUT_TABLE = ROOT / "data/processed/train/hebei_winter_wheat_kcact_train_ready.parquet"
 MODIS_CSV_DIR = ROOT / "data/raw/gee"
 OUTPUT_TABLE = ROOT / "data/processed/train/hebei_winter_wheat_kcact_with_modis.parquet"
@@ -35,9 +41,9 @@ def load_feature_cols(df):
 
 
 def make_catboost():
-    return CatBoostRegressor(
-        iterations=500, depth=6, learning_rate=0.05,
-        random_seed=42, verbose=0, thread_count=-1)
+    return CatBoostRegressor(**make_catboost_params(extra={
+        "iterations": 500, "depth": 6, "learning_rate": 0.05,
+        "random_seed": 42, "verbose": 0}))
 
 
 def load_modis_csvs():
@@ -183,6 +189,8 @@ def build_markdown(baseline_per, baseline_pooled, modis_per, modis_pooled,
 
 
 def main():
+    cfg = get_gpu_config()
+    print(cfg.summary())
     # ---- Load training table ----
     table = pd.read_parquet(INPUT_TABLE)
     table = table[table["qc_valid"]].copy()
