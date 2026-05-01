@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>MLPC Monitor</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font: 14px 'SF Mono', 'Menlo', monospace; background: #1a1a2e; color: #eee; padding: 20px; }
+  h2 { font-size: 14px; color: #7ec8e3; margin-bottom: 8px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+  .card { background: #16213e; border-radius: 8px; padding: 14px; }
+  .row { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid #0f3460; }
+  .row .val { color: #f0c040; font-weight: bold; }
+  .bar-bg { background: #0f3460; border-radius: 4px; height: 20px; margin: 4px 0; overflow: hidden; }
+  .bar { height: 100%; border-radius: 4px; transition: width 0.5s; }
+  .bar.gpu { background: linear-gradient(90deg, #76b852, #a8e063); }
+  .bar.cpu { background: linear-gradient(90deg, #f0c040, #ff6b35); }
+  .bar.mem { background: linear-gradient(90deg, #7ec8e3, #4a90d9); }
+  .bar.temp { background: linear-gradient(90deg, #ff6b35, #e74c3c); }
+  .label { font-size: 11px; color: #888; }
+  .status { color: #76b852; }
+  .proc { font-size: 12px; color: #aaa; }
+  #time { color: #888; font-size: 12px; }
+</style>
+</head>
+<body>
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+  <h1 style="font-size:18px; color:#7ec8e3;">🖥 MLPC — 远程训练监控</h1>
+  <span id="time">--:--:--</span>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h2>🖥 CPU & RAM</h2>
+    <div class="row"><span>总内存</span><span class="val" id="ram_total">--</span></div>
+    <div class="row"><span>已用</span><span class="val" id="ram_used">--</span></div>
+    <div class="row"><span>空闲</span><span class="val" id="ram_free">--</span></div>
+    <div class="label" style="margin-top:6px;">训练进程</div>
+    <div id="procs"></div>
+  </div>
+  <div class="card">
+    <h2>🎮 GPU (RTX 5060)</h2>
+    <div class="row"><span>利用率</span><span class="val" id="gpu_util">--</span></div>
+    <div class="bar-bg"><div class="bar gpu" id="gpu_bar" style="width:0%"></div></div>
+    <div class="row" style="margin-top:8px;"><span>显存</span><span class="val" id="gpu_mem">--</span></div>
+    <div class="bar-bg"><div class="bar mem" id="mem_bar" style="width:0%"></div></div>
+    <div class="row"><span>温度</span><span class="val" id="gpu_temp">--</span></div>
+    <div class="bar-bg"><div class="bar temp" id="temp_bar" style="width:0%"></div></div>
+    <div class="row"><span>功耗</span><span class="val" id="gpu_power">--</span></div>
+  </div>
+</div>
+
+<script>
+const STATS_URL = 'http://192.168.1.118:8765/stats.json';
+
+async function refresh() {
+  try {
+    const r = await fetch(STATS_URL);
+    const s = await r.json();
+    document.getElementById('time').textContent = s.time;
+
+    // RAM
+    if (s.ram && s.ram.length >= 3) {
+      document.getElementById('ram_total').textContent = s.ram[0];
+      document.getElementById('ram_used').textContent = s.ram[1];
+      document.getElementById('ram_free').textContent = s.ram[2];
+    }
+
+    // GPU
+    if (s.gpu && typeof s.gpu === 'object') {
+      const u = parseInt(s.gpu.util) || 0;
+      document.getElementById('gpu_util').textContent = u + '%';
+      document.getElementById('gpu_bar').style.width = u + '%';
+
+      const memParts = s.gpu.mem_used ? s.gpu.mem_used.split(' ') : ['0'];
+      const memVal = parseInt(memParts[0]) || 0;
+      const totalParts = s.gpu.mem_total ? s.gpu.mem_total.split(' ') : ['12288'];
+      const totalVal = parseInt(totalParts[0]) || 12288;
+      const memPct = Math.round(memVal / totalVal * 100);
+      document.getElementById('gpu_mem').textContent = memVal + ' / ' + totalVal + ' MiB (' + memPct + '%)';
+      document.getElementById('mem_bar').style.width = memPct + '%';
+
+      const temp = parseInt(s.gpu.temp) || 0;
+      document.getElementById('gpu_temp').textContent = temp + '°C';
+      document.getElementById('temp_bar').style.width = Math.min(temp, 100) + '%';
+
+      document.getElementById('gpu_power').textContent = (s.gpu.power || '--') + ' W';
+    }
+
+    // Processes
+    const pc = document.getElementById('procs');
+    pc.innerHTML = '';
+    if (s.processes) {
+      s.processes.forEach(p => {
+        pc.innerHTML += `<div class="proc">PID ${p.pid} | CPU ${p.cpu}% | MEM ${p.mem}% | ${p.time} | ${p.cmd}</div>`;
+      });
+    }
+  } catch(e) {
+    document.getElementById('time').textContent = '连接失败';
+  }
+}
+
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>
