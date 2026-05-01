@@ -9,34 +9,44 @@ from sklearn.metrics import r2_score, mean_squared_error
 
 ROOT = Path(__file__).resolve().parents[2]
 PARQUET = ROOT / "data/processed/train/ncp_summer_maize_kcact_train_ready.parquet"
-CSV_DIR = ROOT / "data/raw/gee/modis_indicators"
+CSV_DIR = ROOT / "data" / "raw" / "gee" / "kcact_maize_modis_indicators"
 OUT_PARQUET = ROOT / "data/processed/train/ncp_summer_maize_kcact_with_modis.parquet"
 OUT_DIR = ROOT / "outputs/tables"
 
 def load_modis_csvs():
     frames = {}
-    products = {"fpar": "Fpar_500m", "lst": ["LST_Day_1km","LST_Night_1km"],
-                "albedo": "Albedo_WSA_shortwave", "sm": "volumetric_soil_water_layer_1"}
-    for prefix, bands in products.items():
-        files = sorted(CSV_DIR.glob(f"maize_{prefix}_*.csv"))
+    # product_key -> (file_pattern, band_name_in_csv, output_name)
+    products = {
+        "fpar":   ("maize_fpar",   "mean", "fpar"),
+        "lst":    ("maize_lst",    ["LST_Day_1km","LST_Night_1km"], "lst"),
+        # "sm": ("maize_era5_sm","mean", "sm_surface"),  # 29M rows OOM, skip
+        "m09vi":  ("maize_m09vi",  ["ndvi_m09","sur_refl_b07"], "m09vi"),
+    }
+    for key, (pattern, bands, output_name) in products.items():
+        files = sorted(CSV_DIR.glob(f"{pattern}_*.csv"))
         if not files:
-            print(f"  WARNING: No {prefix} files found in {CSV_DIR}")
+            print(f"  WARNING: No {key} files found in {CSV_DIR}")
             continue
         dfs = []
         for f in files:
             d = pd.read_csv(f)
             d["date"] = pd.to_datetime(d["date"])
             d["point_id"] = d["point_id"].astype(str)
+            # Handle "mean" → actual band name for single-band products
+            if isinstance(bands, str) and bands == "mean" and "mean" in d.columns:
+                d = d.rename(columns={"mean": output_name})
+            keep = ["point_id","date"]
             if isinstance(bands, list):
-                keep = ["point_id","date"] + bands
+                keep += bands
             else:
-                keep = ["point_id","date",bands]
+                col = output_name if (bands == "mean") else bands
+                if col in d.columns:
+                    keep.append(col)
             d = d[[c for c in keep if c in d.columns]]
-            if isinstance(bands, str) and bands in d.columns:
-                d = d.rename(columns={bands: prefix})
             dfs.append(d)
-        frames[prefix] = pd.concat(dfs, ignore_index=True)
-        print(f"  {prefix}: {len(frames[prefix])} rows from {len(files)} files")
+        if dfs:
+            frames[key] = pd.concat(dfs, ignore_index=True)
+            print(f"  {key}: {len(frames[key])} rows from {len(files)} files")
     return frames
 
 def merge_with_parquet(df, modis):
@@ -72,6 +82,24 @@ def merge_with_parquet(df, modis):
         sm["sm_surface"] = sm["sm"].astype(float)
         df = df.merge(sm[["point_id","date","sm_surface"]], on=["point_id","date"], how="left")
 
+    # Add MOD09A1 ndvi_m09 + b07 (handle per-province duplication)
+    if "m09vi" in modis:
+        m09 = modis["m09vi"].copy()
+        m09["ndvi_m09"] = m09["ndvi_m09"].astype(float)
+        m09["b07"] = m09["sur_refl_b07"].astype(float) * 0.0001
+        # Drop duplicates (per-province exports may overlap)
+        m09 = m09.drop_duplicates(subset=["point_id","date"], keep="first")
+        df = df.merge(m09[["point_id","date","ndvi_m09","b07"]], on=["point_id","date"], how="left")
+
+    # Add SRTM DEM
+    srtm_files = sorted(CSV_DIR.glob("maize_srtm_dem*.csv"))
+    if srtm_files:
+        dem = pd.read_csv(srtm_files[0])
+        dem["point_id"] = dem["point_id"].astype(str)
+        dem["elevation"] = dem["elevation"].astype(float)
+        df = df.merge(dem[["point_id","elevation"]], on=["point_id"], how="left")
+        print(f"  srtm: {len(dem)} points")
+
     return df
 
 def main():
@@ -88,11 +116,50 @@ def main():
     df = df[df['qc_valid']].copy()
     print(f"  {len(df)} valid samples")
 
-    print("\nMerging MODIS indicators...")
-    df = merge_with_parquet(df, modis)
+    print("\nMerging MODIS indicators (step by step)...")
+    import gc
+    df = df.copy()
+    df["point_id"] = df["point_id"].astype(str)
+
+    # Step 1: fpar
+    if "fpar" in modis:
+        m = modis.pop("fpar"); m["fpar"] = m["fpar"].astype(float) * 0.01
+        df = df.merge(m[["point_id","date","fpar"]], on=["point_id","date"], how="left")
+        del m; gc.collect(); print("  fpar merged")
+
+    # Step 2: LST
+    if "lst" in modis:
+        m = modis.pop("lst")
+        for c in ["LST_Day_1km","LST_Night_1km"]:
+            if c in m.columns: m[c] = m[c].astype(float) * 0.02
+        m["lst_day"] = m["LST_Day_1km"]; m["lst_night"] = m["LST_Night_1km"]
+        m["delta_lst"] = m["lst_day"] - m["lst_night"]
+        df = df.merge(m[["point_id","date","lst_day","lst_night","delta_lst"]],
+                      on=["point_id","date"], how="left")
+        del m; gc.collect(); print("  lst merged")
+
+    # Step 3: SM — skip for now (29M rows OOM). Use precip_30d as proxy later.
+    print("  sm skipped (29M rows, use proxy)")
+
+    # Step 4: MOD09A1
+    if "m09vi" in modis:
+        m = modis.pop("m09vi")
+        m["ndvi_m09"] = m["ndvi_m09"].astype(float)
+        m["b07"] = m["sur_refl_b07"].astype(float) * 0.0001
+        m = m.drop_duplicates(subset=["point_id","date"], keep="first")
+        df = df.merge(m[["point_id","date","ndvi_m09","b07"]], on=["point_id","date"], how="left")
+        del m; gc.collect(); print("  m09vi merged")
+
+    # Step 5: SRTM
+    srtm_files = sorted(CSV_DIR.glob("maize_srtm_dem*.csv"))
+    if srtm_files:
+        m = pd.read_csv(srtm_files[0]); m["point_id"] = m["point_id"].astype(str)
+        m["elevation"] = m["elevation"].astype(float)
+        df = df.merge(m[["point_id","elevation"]], on=["point_id"], how="left")
+        del m; gc.collect(); print("  srtm merged")
 
     # Coverage check
-    for c in ["fpar","lst_day","delta_lst","albedo_sw","sm_surface"]:
+    for c in ["fpar","lst_day","delta_lst","albedo_sw","sm_surface","ndvi_m09","b07","elevation"]:
         n = df[c].notna().sum() if c in df.columns else 0
         print(f"  {c}: {n}/{len(df)} ({n/len(df)*100:.1f}%)")
 
@@ -100,26 +167,34 @@ def main():
     df.to_parquet(OUT_PARQUET, index=False)
     print(f"\nSaved: {OUT_PARQUET}")
 
-    # ---- Train with 7 best indicators ----
-    print("\n=== Training: 7 indicators on large maize dataset ===")
-    feats_7 = ["ndvi","lswi","doy","fpar","delta_lst","sm_surface","albedo_sw"]
-    feats_7 = [f for f in feats_7 if f in df.columns]
-    sub = df.dropna(subset=feats_7 + ['kcact'])
-    print(f"  7-indicator samples: {len(sub)}")
+    # ---- Train: multiple combos ----
+    print("\n=== Training on large maize dataset ===")
+    years = sorted(df['year'].unique())
 
-    years = sorted(sub['year'].unique())
-    all_p, all_a = [], []
-    for yr in years:
-        tr = sub[sub['year']!=yr]; te = sub[sub['year']==yr]
-        if len(te) < 10: continue
-        m = CatBoostRegressor(iterations=500, learning_rate=0.03, depth=6,
-                              l2_leaf_reg=3, loss_function='RMSE', random_seed=42, verbose=False)
-        m.fit(tr[feats_7].values, tr['kcact'].values)
-        all_p.extend(m.predict(te[feats_7].values))
-        all_a.extend(te['kcact'].values)
-    r2_7 = r2_score(all_a, all_p)
-    rmse_7 = np.sqrt(mean_squared_error(all_a, all_p))
-    print(f"  7 indicators: LOYO R² = {r2_7:.5f}, RMSE = {rmse_7:.5f}")
+    combos = {
+        "ndvi+b07+doy": ["ndvi_m09","b07","doy"],
+        "ndvi+lswi+doy": ["ndvi","lswi","doy"],
+        "best7_station": ["ndvi_m09","lswi","doy","fpar","delta_lst","sm_surface","elevation"],
+        "best7_plus_b07": ["ndvi_m09","b07","doy","fpar","delta_lst","sm_surface","elevation"],
+    }
+
+    results = []
+    for name, feats in combos.items():
+        feats = [f for f in feats if f in df.columns]
+        sub = df.dropna(subset=feats + ['kcact'])
+        all_p, all_a = [], []
+        for yr in years:
+            tr = sub[sub['year']!=yr]; te = sub[sub['year']==yr]
+            if len(te) < 10: continue
+            m = CatBoostRegressor(iterations=500, learning_rate=0.03, depth=6,
+                                  l2_leaf_reg=3, loss_function='RMSE', random_seed=42, verbose=False)
+            m.fit(tr[feats].values, tr['kcact'].values)
+            all_p.extend(m.predict(te[feats].values))
+            all_a.extend(te['kcact'].values)
+        r2 = r2_score(all_a, all_p)
+        rmse = np.sqrt(mean_squared_error(all_a, all_p))
+        print(f"  {name:20s}  n={len(feats):2d}  R²={r2:.5f}  RMSE={rmse:.5f}  samples={len(sub)}")
+        results.append({"combo": name, "n_feat": len(feats), "LOYO_R2": round(r2,5), "LOYO_RMSE": round(rmse,5)})
 
     # ---- Baseline: full features ----
     exclude = {"patch_id","point_id","date","date_start","date_end","province","crop_type",
@@ -135,6 +210,7 @@ def main():
     all_p, all_a = [], []
     for yr in years:
         tr = sub_f[sub_f['year']!=yr]; te = sub_f[sub_f['year']==yr]
+        if len(te) < 10: continue
         m = CatBoostRegressor(iterations=500, learning_rate=0.03, depth=6,
                               l2_leaf_reg=3, loss_function='RMSE', random_seed=42, verbose=False)
         m.fit(tr[feats_full].values, tr['kcact'].values)
@@ -142,17 +218,16 @@ def main():
         all_a.extend(te['kcact'].values)
     r2_full = r2_score(all_a, all_p)
     rmse_full = np.sqrt(mean_squared_error(all_a, all_p))
-    print(f"  Full ({len(feats_full)} features): LOYO R² = {r2_full:.5f}, RMSE = {rmse_full:.5f}")
+    print(f"  Full ({len(feats_full)} feats): R²={r2_full:.5f}  RMSE={rmse_full:.5f}")
 
-    # Save comparison
-    result = pd.DataFrame([
-        {"combo": "7_indicators", "n_feat": len(feats_7), "LOYO_R2": round(r2_7,5), "LOYO_RMSE": round(rmse_7,5)},
-        {"combo": "full_features", "n_feat": len(feats_full), "LOYO_R2": round(r2_full,5), "LOYO_RMSE": round(rmse_full,5)},
-    ])
+    results.append({"combo": "full_features", "n_feat": len(feats_full),
+                    "LOYO_R2": round(r2_full,5), "LOYO_RMSE": round(rmse_full,5)})
+
+    out = pd.DataFrame(results)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    result.to_csv(OUT_DIR / "maize_7indicator_vs_full.csv", index=False)
-    print(f"\n  ΔR² = {r2_7 - r2_full:+.4f} (7 vs {len(feats_full)} features)")
-    print(f"  Results: {OUT_DIR / 'maize_7indicator_vs_full.csv'}")
+    out.to_csv(OUT_DIR / "maize_real_modis_results.csv", index=False)
+    print(f"\nResults: {OUT_DIR / 'maize_real_modis_results.csv'}")
+    print(out.to_string(index=False))
 
 if __name__ == "__main__":
     main()

@@ -1,6 +1,6 @@
 # Kcact ET Modeling — Handover Document
 
-**Last updated**: 2026-05-01 | **Sessions**: zhandian — station ML, 962 combos, per-station analysis, GEE resubmit v3
+**Last updated**: 2026-05-01 | **Sessions**: zhandian | **Ready for**: Desktop transfer (RTX 5060)
 
 ## 1. Project Overview
 
@@ -249,7 +249,42 @@ Three rounds of submission, two failures:
 
 **In queue (84 tasks)**: Per-province albedo/S2 raw/S1/MOD09A1 for all 7 years
 
-## 11. Repository Notes
+## 11. Desktop Transfer Checklist
+
+### Environment Setup (Windows/Linux, RTX 5060)
+```bash
+conda create -n sdxx python=3.11 -y && conda activate sdxx
+pip install catboost xgboost lightgbm scikit-learn pandas numpy pyarrow openpyxl earthengine-api
+# GPU auto-detected by CatBoost/XGBoost/LightGBM
+```
+
+### Must-Have Local Data (copy from Mac)
+- `data/raw/实际蒸散发观测数据.xlsx` — station ETc observations (manually copy, gitignored)
+- `data/raw/gee/kcact_maize_modis_indicators/` — 54 GEE CSV exports (copy from Mac)
+- `data/raw/gee/*_maize_*.csv` — existing S2/ERA5/MOD16 exports (copy from Mac)
+- `data/processed/train/*.parquet` — training tables (copy from Mac or rebuild)
+
+### First Commands on Desktop
+```bash
+# Station analysis:
+python scripts/python/compute_station_et0.py      # Excel → ET0 + Kcact
+python scripts/python/train_maize_500_combos.py   # 962 combos station
+
+# Large sample (after copying GEE CSVs):
+python scripts/python/merge_modis_yearly.py        # Merge MODIS + train
+
+# Figures:
+python scripts/python/plot_station_kcact.py        # 9 Nature-style figs
+```
+
+### GPU Speedup Estimate
+| Task | Mac M5 | Desktop RTX 5060 |
+|------|--------|-----------------|
+| 962 combos station | ~20 min | ~3 min |
+| Large sample 1 combo | ~10 min | ~1 min |
+| 500 combos large sample | ~80 h | ~8 h |
+
+## 13. Repository Notes
 
 - Branch `predict-etc-direct` merged into `main` via no-ff merge
 - `.omc/` and `catboost_info/` untracked via `git rm --cached` + `.gitignore`
@@ -258,7 +293,7 @@ Three rounds of submission, two failures:
 - `data/raw/*` gitignored — station Excel data never committed
 - README updated for group use
 
-## 12. Path Forward
+## 14. Path Forward
 
 1. **Wait for GEE exports** (50 tasks, Drive folder `kcact_maize_modis_indicators`)
 2. **Download + merge** → run `merge_modis_and_retrain_maize.py`

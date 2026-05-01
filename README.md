@@ -7,8 +7,9 @@
 | 作物 | 数据规模 | 样本数 | LOYO R² | 特征数 |
 |------|---------|--------|---------|--------|
 | 冬小麦 | 河北 592 patches, 2019–2025 | 18,528 | 0.702 | 46 |
-| 夏玉米 | 华北四省 7,153 patches, 2019–2025 | 397,628 | 0.769 | 46 |
-| 夏玉米（站点验证） | 4 通量站, 2003–2015 | 304 | 0.467 | 7 |
+| 夏玉米 | 华北四省 7,153 patches, 2019–2025 | 397,628 | **0.769** (indirect) / **0.729** (7 feat) | 46 / 7 |
+| 夏玉米（站点验证） | 4 通量站, 2003–2015 | 304 | **0.486** (Kc) / **0.518** (ETc+ET0) | 5 |
+| 夏玉米（站点，MODIS实数据） | 4 通量站, 2003–2015 | 304 | 0.518 | 5 (GNDVI+ΔLST+Albedo+DOY+ET0) |
 
 ## 数据流
 
@@ -51,13 +52,37 @@ ERA5-Land 土壤水分 ───────────────────
 
 ## 环境
 
+**macOS (M5)**：
 ```bash
 conda activate sdxx
-# macOS 需要：
 export DYLD_LIBRARY_PATH="/opt/homebrew/opt/libomp/lib:$DYLD_LIBRARY_PATH"
 ```
 
+**Desktop (RTX 5060, CUDA)**：
+```bash
+conda create -n sdxx python=3.11 -y && conda activate sdxx
+pip install catboost xgboost lightgbm scikit-learn pandas numpy pyarrow openpyxl earthengine-api
+# GPU 自动检测
+```
+
 核心依赖：`catboost scikit-learn pandas numpy pyarrow openpyxl earthengine-api`
+
+## 快速开始（桌面版）
+
+```bash
+# 1. 从 Mac 复制数据
+scp -r mac:Projects/dcsdxx/data/ ./
+
+# 2. 站点分析
+python scripts/python/compute_station_et0.py      # Excel → ET0 + Kcact
+python scripts/python/train_maize_500_combos.py   # 962 组合
+
+# 3. 大样本（已有 MODIS 指标）
+python scripts/python/merge_modis_yearly.py        # 合并 + 训练
+
+# 4. 画图
+python scripts/python/plot_station_kcact.py        # 9 张 Nature 风格图
+```
 
 ## 关键脚本
 
@@ -98,6 +123,18 @@ export DYLD_LIBRARY_PATH="/opt/homebrew/opt/libomp/lib:$DYLD_LIBRARY_PATH"
 7. **DOY** — 日序（物候阶段编码）
 8. **b07 (SWIR2)** — 2.13μm 短波红外反射率，最强水分吸收波段
 
+### Kc 间接法 vs ETc 直接法
+
+在站点数据（304样本）上测试，直接法+ET0 超过间接法：
+
+| 方法 | 最优组合 | R² |
+|------|---------|-----|
+| 间接法 (Kc) | fpar+dLST+SM+ndvi+lswi+alb+doy | 0.486 |
+| 直接法 (ETc) | gndvi+dLST+alb+doy | 0.481 |
+| 直接法+ET0 | gndvi+dLST+alb+doy+ET0 | **0.518** |
+
+间接法在小样本上稳定，直接法+ET0最优但需要大气背景值。详见 `outputs/tables/kcact_vs_etc_direct_top20.csv`。
+
 ### 核心结论
 
 - **3 个特征接近 7 个的效果**：ndvi + b07(SWIR2) + doy → R²=0.461（vs 7 特征 0.467）
@@ -110,9 +147,21 @@ export DYLD_LIBRARY_PATH="/opt/homebrew/opt/libomp/lib:$DYLD_LIBRARY_PATH"
 
 同一指标在不同站点的相关性差异可达 0.2–0.3。albedo_sw 在栾城正相关（+0.16）但在位山负相关（−0.54）。LOSO CV 跨站外推时模型的 R² 因此受限。加经纬度或站点哑变量可部分缓解。
 
-## GEE 导出任务
+## GEE 导出状态
 
-50+ 任务已提交至 Drive 文件夹 `kcact_maize_modis_indicators/`，等待完成后合并。详见 `docs/handover.md` §7。
+| 产品 | 状态 | 备注 |
+|------|------|------|
+| fPAR (MOD15A2H) | 7/7 已完成 | 已下载并合并 |
+| LST (MOD11A2) | 7/7 已完成 | ΔLST 已计算 |
+| SM (ERA5-Land) | 7/7 已完成 | 29M行，待按窗口聚合 |
+| MOD09A1 ndvi+b07 | 32/32 已完成 | 含按省导出，已去重合并 |
+| SRTM DEM | 1/1 已完成 | 高程已合并 |
+| Albedo (MCD43A3) | 0/7 | 三次尝试全失败（OOM） |
+| S2 raw / S1 SAR | 0/14 | 三次尝试全失败 |
+
+文件位置：`data/raw/gee/kcact_maize_modis_indicators/`（54个CSV）
+
+合并后 parquet：`data/processed/train/ncp_summer_maize_kcact_with_modis.parquet`
 
 ## 约束
 
