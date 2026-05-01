@@ -90,15 +90,6 @@ def merge_modis():
     df["doy_cos"] = np.cos(2 * np.pi * df["doy"] / 365)
     df["elevation"] = 0.0
 
-    srtm_files = list(CSV_DIR.glob("maize_srtm_dem*.csv"))
-    if srtm_files:
-        dem = pd.read_csv(srtm_files[0])
-        dem["point_id"] = dem["point_id"].astype(str)
-        if "elevation" in dem.columns:
-            dem["elevation"] = dem["elevation"].astype(float)
-            df = df.merge(dem[["point_id","elevation"]], on="point_id", how="left")
-            df["elevation"] = df["elevation"].fillna(0)
-
     df.to_parquet(OUT_PARQUET, index=False)
     for c in ["fpar","delta_lst","ndvi_m09","b07","elevation"]:
         print(f"  {c}: {df[c].notna().sum()}/{len(df)} ({(df[c].notna().sum()/len(df)*100):.0f}%)")
