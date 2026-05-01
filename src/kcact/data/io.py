@@ -30,7 +30,15 @@ def read_many_csv(paths: Iterable[str], parse_dates: Iterable[str] | None = None
     resolved = expand_input_paths(paths)
     if not resolved:
         raise FileNotFoundError("No input CSV files matched")
-    frames = [pd.read_csv(path, parse_dates=list(parse_dates or [])) for path in resolved]
+    frames = []
+    date_cols = list(parse_dates or [])
+    for path in resolved:
+        if path.stat().st_size < 10:
+            continue  # skip empty/placeholder files
+        try:
+            frames.append(pd.read_csv(path, parse_dates=date_cols))
+        except (pd.errors.EmptyDataError, pd.errors.ParserError):
+            continue
     return pd.concat(frames, ignore_index=True)
 
 

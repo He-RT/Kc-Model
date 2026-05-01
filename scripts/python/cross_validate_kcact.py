@@ -24,6 +24,8 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from kcact.utils.gpu import get_gpu_config, make_xgb_params
+
 INPUT_TABLE = ROOT / "data/processed/train/hebei_winter_wheat_kcact_train_ready.parquet"
 OUTPUT_DIR = ROOT / "outputs"
 
@@ -51,6 +53,8 @@ def evaluate(name: str, y_true: np.ndarray, y_pred: np.ndarray) -> dict:
 
 
 def main():
+    cfg = get_gpu_config()
+    print(cfg.summary())
     df = pd.read_parquet(INPUT_TABLE)
     df = df[df["qc_valid"]].copy()
     feature_cols = load_feature_cols(df)
@@ -90,10 +94,10 @@ def main():
 
         # XGB
         if HAS_XGB:
-            xgb_m = xgb.XGBRegressor(
-                n_estimators=200, max_depth=6, learning_rate=0.05,
-                subsample=0.8, colsample_bytree=0.8, random_state=42, n_jobs=-1,
-            )
+            xgb_m = xgb.XGBRegressor(**make_xgb_params(extra={
+                "n_estimators": 200, "max_depth": 6, "learning_rate": 0.05,
+                "subsample": 0.8, "colsample_bytree": 0.8, "random_state": 42,
+            }))
             xgb_m.fit(X_train, y_train)
             y_pred_xgb = xgb_m.predict(X_test)
             m_xgb = evaluate("XGB", y_test, y_pred_xgb)

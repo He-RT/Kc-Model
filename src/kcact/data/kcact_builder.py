@@ -31,19 +31,30 @@ def aggregate_daily_weather_to_mod16_windows(
     mod16_df: pd.DataFrame,
     gdd_base_c: float = 0.0,
 ) -> pd.DataFrame:
+    """Aggregate daily ERA5 weather to MOD16 8-day windows.
+
+    Processes one unique 8-day window at a time to keep memory low.
+    MOD16 windows are identical across patches, so we iterate over ~161
+    unique windows rather than doing a cross-join per patch_id.
+    """
     weather = _normalize_patch_id(era5_daily_df)
     weather["date"] = pd.to_datetime(weather["date"])
     weather["gdd_daily"] = np.maximum(weather["tmean_c"] - gdd_base_c, 0.0)
 
-    windows = _normalize_patch_id(mod16_df)[["patch_id", "date_start", "date_end", "date"]].copy()
+    windows = _normalize_patch_id(mod16_df)[
+        ["patch_id", "date_start", "date_end", "date"]
+    ].copy()
     windows["date_start"] = pd.to_datetime(windows["date_start"])
     windows["date_end"] = pd.to_datetime(windows["date_end"])
     windows["date"] = pd.to_datetime(windows["date"])
     windows = windows.drop_duplicates()
 
-    joined = weather.merge(windows, on="patch_id", how="inner")
-    joined = joined[(joined["date_x"] >= joined["date_start"]) & (joined["date_x"] < joined["date_end"])].copy()
-    joined = joined.rename(columns={"date_x": "weather_date", "date_y": "window_date"})
+    # Build patch_id → set of valid dates for fast lookup
+    patch_window_dates = windows.groupby("patch_id")["date"].apply(set).to_dict()
+
+    # Unique (date_start, date_end, date) across all patches (~161 windows)
+    unique_win = windows[["date_start", "date_end", "date"]].drop_duplicates()
+    unique_win = unique_win.sort_values("date_start").reset_index(drop=True)
 
     agg_spec = {
         "et0_pm_8d_mm": ("et0_pm_mm", "sum"),
@@ -60,16 +71,47 @@ def aggregate_daily_weather_to_mod16_windows(
         "centroid_lat": ("centroid_lat", "first"),
         "centroid_lon": ("centroid_lon", "first"),
     }
-    for opt_col in ["area_ha", "elevation_m"]:
-        if opt_col in joined.columns:
-            agg_spec[opt_col] = (opt_col, "first")
 
-    aggregated = (
-        joined.groupby(["patch_id", "date_start", "date_end", "window_date"], as_index=False)
-        .agg(**agg_spec)
-        .rename(columns={"window_date": "date"})
-    )
-    return aggregated
+    aggregated_frames = []
+    n_win = len(unique_win)
+    for i, (_, win_row) in enumerate(unique_win.iterrows()):
+        w_start = win_row["date_start"]
+        w_end = win_row["date_end"]
+        w_date = win_row["date"]
+
+        # Filter weather rows within this 8-day window
+        in_window = weather[
+            (weather["date"] >= w_start) & (weather["date"] < w_end)
+        ].copy()
+        if len(in_window) == 0:
+            continue
+
+        # Only keep patches that have this MOD16 window
+        valid_patches = {pid for pid, dates in patch_window_dates.items() if w_date in dates}
+        in_window = in_window[in_window["patch_id"].isin(valid_patches)]
+
+        if len(in_window) == 0:
+            continue
+
+        # Add window metadata
+        in_window["date_start"] = w_start
+        in_window["date_end"] = w_end
+        in_window["window_date"] = w_date
+
+        # Aggregate per patch
+        agged = (
+            in_window.groupby(["patch_id", "date_start", "date_end", "window_date"], as_index=False)
+            .agg(**agg_spec)
+        )
+        aggregated_frames.append(agged)
+        del in_window, agged
+
+    if not aggregated_frames:
+        return pd.DataFrame()
+
+    result = pd.concat(aggregated_frames, ignore_index=True)
+    result = result.rename(columns={"window_date": "date"})
+    return result
 
 
 def prepare_mod16_etc(mod16_df: pd.DataFrame) -> pd.DataFrame:
@@ -103,8 +145,13 @@ def prepare_s2_features(s2_df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
+def add_temporal_features(df: pd.DataFrame, crop_type: str = "winter_wheat") -> pd.DataFrame:
     result = df.sort_values(["patch_id", "date"]).copy()
+
+    # Idempotent: skip if already computed
+    if "greenup_doy" in result.columns:
+        return result
+
     result["year"] = result["date"].dt.year
     result["doy"] = result["date"].dt.dayofyear
 
@@ -138,16 +185,80 @@ def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
         if "lswi" in result.columns:
             result["lswi_vpd"] = result["lswi"] * result["vpd_kpa_mean_8d"]
 
-    # Phenology features — tell the model where each window sits in the season
-    # Winter wheat: planting ~Oct 1 (doy 274), harvest ~end of Jul (doy ~210)
+    # ---- Per-patch greenup onset detection ----
+    # Winter wheat: find the NDVI minimum in the dormancy period (doy 0-90,
+    # ~Jan–Mar), then the first window after the minimum where NDVI exceeds
+    # the dormancy floor by a clear margin and is still rising.
+    # This replaces the fixed Oct-1 season reference with a data-driven one.
+
+    is_wheat = crop_type == "winter_wheat"
+
+    def _detect_greenup(grp: pd.DataFrame) -> pd.Series:
+        grp = grp.sort_values("doy")
+        ndvi = grp["ndvi"].values
+        doy = grp["doy"].values
+        n = len(ndvi)
+
+        if is_wheat:
+            # Wheat: find winter dormancy minimum (doy 1-90), then greenup
+            dorm_mask = doy <= 90
+            dorm_ndvi = ndvi[dorm_mask] if dorm_mask.any() else ndvi[:max(1, n // 4)]
+            baseline = float(dorm_ndvi.min())
+            min_idx = int(np.argmin(ndvi[dorm_mask]) if dorm_mask.any() else 0)
+            threshold = baseline + 0.10
+        else:
+            # Summer maize: no dormancy. Baseline is early-season minimum.
+            # Find first NDVI > 0.30 that keeps rising (germination->vegetative)
+            baseline = float(ndvi[:max(1, n // 3)].min())
+            min_idx = 0
+            threshold = 0.30
+
+        greenup_idx = n
+        for i in range(min_idx, n - 1):
+            if ndvi[i] > threshold and ndvi[i + 1] > ndvi[i]:
+                greenup_idx = i
+                break
+
+        greenup_doy = float(doy[greenup_idx]) if greenup_idx < n else (91.0 if is_wheat else 170.0)
+        greenup_ndvi = float(ndvi[greenup_idx]) if greenup_idx < n else float(baseline)
+        greenup_gdd = float(grp["gdd_8d"].iloc[:greenup_idx+1].sum()) if greenup_idx < n else 0.0
+
+        return pd.Series({
+            "greenup_doy": greenup_doy,
+            "greenup_ndvi": greenup_ndvi,
+            "greenup_gdd_cum": greenup_gdd,
+        })
+
+    greenup_lookup = result.groupby("patch_id").apply(_detect_greenup).reset_index()
+    result = result.merge(greenup_lookup, on="patch_id", how="left")
+    result["days_since_greenup"] = result["doy"] - result["greenup_doy"]
+    result["gdd_since_greenup"] = result.groupby("patch_id")["gdd_8d"].cumsum() - result["greenup_gdd_cum"]
+    del result["greenup_gdd_cum"]
+
+    # ---- Phenology features (greenup-referenced) ----
+    # days_since_greenup: 0 at greenup, negative before (dormancy),
+    # positive during growth/senescence. Clipped to avoid extreme values.
+    result["days_since_greenup"] = result["days_since_greenup"].clip(-90, 250)
+
+    # Keep old doy_season for backward compatibility (still useful as calendar ref)
     result["doy_season"] = np.where(
         result["doy"] >= 274, result["doy"] - 274, result["doy"] + 91
-    )  # days since Oct 1, continuous 0→302
+    )
 
-    # GDD fraction: how much of this patch's total heat accumulation so far
+    result["gdd_since_greenup"] = result["gdd_since_greenup"].clip(lower=0.0)
+
+    # GDD fraction: heat accumulation relative to patch total (kept)
     patch_gdd_total = result.groupby("patch_id")["gdd_cum"].transform("max")
     result["gdd_frac"] = np.where(
         patch_gdd_total > 0, result["gdd_cum"] / patch_gdd_total, 0.0
+    )
+
+    # GDD fraction since greenup
+    patch_gdd_greenup_total = result.groupby("patch_id")["gdd_since_greenup"].transform("max")
+    result["gdd_frac_greenup"] = np.where(
+        patch_gdd_greenup_total > 0,
+        result["gdd_since_greenup"] / patch_gdd_greenup_total,
+        0.0,
     )
 
     # NDVI relative position within each patch's observed range
@@ -168,6 +279,9 @@ def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
         result["vpd_sq"] = vpd ** 2
         result["vpd_doy_season"] = vpd * result["doy_season"]
         result["vpd_gdd_frac"] = vpd * result["gdd_frac"]
+        # Greenup-referenced interactions
+        result["vpd_days_greenup"] = vpd * result["days_since_greenup"]
+        result["vpd_gdd_frac_greenup"] = vpd * result["gdd_frac_greenup"]
 
     # Days since peak NDVI — signals senescence depth
     patch_ndvi_cummax_idx = result.groupby("patch_id")["ndvi"].transform(
@@ -235,7 +349,7 @@ def build_training_table(
             merged[static_col] = merged[static_col].fillna(merged[f"{static_col}_weather"])
     merged["province"] = province
     merged["crop_type"] = crop_type
-    merged = add_temporal_features(merged)
+    merged = add_temporal_features(merged, crop_type=crop_type)
     merged = quality_control(merged)
 
     valid = merged[merged["qc_valid"]].copy()

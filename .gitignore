@@ -7,6 +7,7 @@ __pycache__/
 .ipynb_checkpoints/
 .venv/
 venv/
+uv.lock
 .env
 .env.*
 *.local
@@ -14,12 +15,6 @@ venv/
 *.tmp
 *.swp
 *.swo
-
-# Earth Engine / cloud auth or local secrets
-*.private-key.json
-*.service-account.json
-credentials.json
-token.json
 
 data/raw/*
 !data/raw/.gitkeep
@@ -54,3 +49,21 @@ outputs/reports/*
 
 logs/*
 !logs/.gitkeep
+
+# OMC plugin state
+.omc/
+
+# CatBoost training artifacts
+catboost_info/
+
+# Large data files
+*.parquet
+
+# GEE export cache
+data/processed/modis_cache/
+
+# Earth Engine Python auth
+*.private-key.json
+*.service-account.json
+credentials.json
+token.json
