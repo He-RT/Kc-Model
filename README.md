@@ -1,83 +1,123 @@
-# 华北平原单作物 Kcact 数据集生产与建模
+# 华北平原作物 Kcact 数据集生产与建模
 
-本仓库用于构建“区域尺度、多年份、单作物”的 `Kcact` 数据集与建模流程。第一阶段先聚焦河北省冬小麦 `2021-2023` 的最小可行版本（MVP），目标是把数据生产线、质量控制和基线模型先跑通。
+基于遥感与气象数据的作物系数（Kcact = ETc / ET0）预测，覆盖冬小麦和夏玉米。
 
-核心标签定义：
+**当前最优模型**：
 
-```text
-Kcact = ETc / ET0
+| 作物 | 数据规模 | 样本数 | LOYO R² | 特征数 |
+|------|---------|--------|---------|--------|
+| 冬小麦 | 河北 592 patches, 2019–2025 | 18,528 | 0.702 | 46 |
+| 夏玉米 | 华北四省 7,153 patches, 2019–2025 | 397,628 | 0.769 | 46 |
+| 夏玉米（站点验证） | 4 通量站, 2003–2015 | 304 | 0.467 | 7 |
+
+## 数据流
+
+```
+GEE 导出                                 本地处理
+─────────                              ─────────
+S2 地表反射率 ──→ VI 计算              ┌─→ 合并训练表
+ERA5-Land 气象 ──→ FAO-56 ET0 ────────┤
+MOD16A2 ETc ────→ 8天窗口聚合 ────────┤
+MODIS 热红外/fPAR/反照率 ─────────────┤
+ERA5-Land 土壤水分 ───────────────────┘
+                                       └─→ CatBoost LOYO CV
 ```
 
-当前首版实现路线采用：
+## 目录结构
 
-- `ETc`：统一使用 `MODIS/061/MOD16A2GF` 8 天蒸散发产品
-- `ET0`：统一使用 FAO Penman-Monteith 方法计算
-- 样本单元：`field-date`，其中 `date` 先采用与 MOD16A2GF 对齐的 8 天窗口结束日期
-- 研究对象：河北省冬小麦
-
-## 当前目录结构
-
-```text
+```
 .
-├── configs/                  # YAML 配置：区域、年份、数据源、路径、QC 阈值
+├── configs/                  # YAML 配置
 ├── data/
-│   ├── external/             # 需要人工准备的外部输入，如地块边界、土壤数据
-│   ├── raw/                  # 直接来自 GEE / 原始下载的数据
-│   ├── interim/              # 中间结果，如 ET0 日尺度表、特征聚合表
-│   ├── processed/            # 最终可训练样本表
-│   └── metadata/             # 字段字典、版本说明、样本统计
-├── docs/                     # 项目说明、数据流、字段规范
+│   ├── external/             # 外部输入（地块边界、土壤等）
+│   ├── raw/                  # GEE 导出 CSV + 站点实测 Excel
+│   │   └── gee/              # GEE Drive 导出文件
+│   ├── interim/              # 中间结果
+│   ├── processed/            # 训练 parquet + 站点衍生 CSV
+│   │   └── modis_cache/      # GEE 提取缓存（gitignored）
+│   └── metadata/             # 字段字典、区域列表
+├── docs/                     # handover、数据流、候选指标清单
 ├── gee/                      # GEE JavaScript 脚本
-├── logs/                     # 运行日志
-├── notebooks/                # 仅用于分析和可视化，不承载正式流水线
+├── scripts/python/           # 入口脚本
+├── src/kcact/                # Python 业务模块
+│   ├── data/                 # kcact_builder, io
+│   └── features/             # et0 (FAO-56 PM)
 ├── outputs/
-│   ├── figures/              # 图件
-│   ├── models/               # 训练好的模型与特征重要性
-│   ├── reports/              # 评估报告
-│   └── tables/               # 评估表、分组统计表
-├── scripts/
-│   └── python/               # 可直接执行的 Python 入口脚本
-├── src/
-│   └── kcact/                # Python 业务模块
-│       ├── config/
-│       ├── data/
-│       ├── features/
-│       ├── modeling/
-│       └── utils/
-└── tests/                    # 单元测试与数据契约测试
+│   ├── figures/              # Nature-style 图表
+│   ├── models/               # 训练好的模型
+│   └── tables/               # CV 结果、组合对比
+└── tests/                    # 单元测试
 ```
 
-## MVP 数据流
+## 环境
 
-完整设计见 [docs/mvp-dataflow.md](/Users/hert/Projects/dcsdxx/docs/mvp-dataflow.md)。
+```bash
+conda activate sdxx
+# macOS 需要：
+export DYLD_LIBRARY_PATH="/opt/homebrew/opt/libomp/lib:$DYLD_LIBRARY_PATH"
+```
 
-MVP 的稳妥路径是：
+核心依赖：`catboost scikit-learn pandas numpy pyarrow openpyxl earthengine-api`
 
-1. 准备河北省冬小麦地块边界或等价采样单元
-2. 在 GEE 中导出 Sentinel-2 地块统计特征
-3. 在 GEE 中导出 ERA5-Land 日尺度气象变量
-4. 在 GEE 中导出 MOD16A2GF 地块 ETc
-5. 在本地计算 ET0
-6. 合并成统一的 `field-date` 训练表
-7. 做 `Kcact` 标签和质量控制
-8. 训练跨年份验证的 XGBoost baseline
+## 关键脚本
 
-## 当前已固定的关键约束
+### 站点实测数据
 
-- 先做单作物，不混作物
-- 先做表格特征模型，不直接上端到端深度影像模型
-- 训练验证优先采用跨年份切分，禁止随机打散泄漏
-- `ETc` 与 `ET0` 的来源和计算方法必须统一
+| 脚本 | 作用 |
+|------|------|
+| `compute_station_et0.py` | Excel → ERA5 逐日 ET0 → 8天窗口聚合 → Kcact |
+| `extract_station_ml_features.py` | GEE 提取 8 个 MODIS/ERA5 遥感指标 |
+| `extract_station_raw_bands.py` | GEE 提取 MOD09A1 全部 7 个原始波段 |
+| `extract_station_era5_weather.py` | GEE 提取 ERA5-Land 气象变量 |
+| `extract_station_mod09ga_ndvi.py` | GEE 提取 MOD09GA 逐日 NDVI |
+| `train_maize_500_combos.py` | 962 组合 LOSO CV，夏玉米站点特征选择 |
+| `train_station_ml_combos.py` | 141 组合全季节站点训练 |
+| `plot_station_kcact.py` | Nature-style 宋体 Kcact 折线图（9 张） |
 
-## 需要你先准备的外部数据
+### 大样本训练
 
-MVP 不默认这些数据已存在。以下输入需要你后续补齐到 `data/external/`：
+| 脚本 | 作用 |
+|------|------|
+| `cross_validate_kcact_v2.py` | 主 CV 脚本（CatBoost/XGB/LGBM/Ensemble） |
+| `build_maize_kcact_table.py` | 从 GEE 导出 CSV 构建夏玉米训练 parquet |
+| `export_maize_kcact_training_data.py` | GEE 导出 S2/ERA5/MOD16 数据 |
+| `export_maize_modis_indicators.py` | GEE 导出 MODIS fPAR/LST/Albedo/SM |
+| `export_maize_s2raw_and_s1.py` | GEE 导出 S2 原始波段 + Sentinel-1 SAR |
+| `merge_modis_and_retrain_maize.py` | 合并 MODIS 指标 → 大样本重训练 |
 
-- 河北省冬小麦地块边界：
-  `data/external/field_boundaries/hebei_winter_wheat_fields.geojson`
-- 如果要加静态特征，还需要：
-  - 土壤类型图
-  - DEM / 坡度
-  - 灌溉区掩膜（可选）
+## 站点验证关键发现
 
-如果当前没有真实地块边界，也能先用网格采样单元做技术验证，但那是备选，不是默认路线。
+### 8 个最优遥感指标
+
+1. **fPAR** — 光合有效辐射吸收比（MOD15A2H, 8天, 500m）
+2. **ΔLST** — 昼夜地表温差（MOD11A2, 8天, 1km）
+3. **SM surface** — 表层土壤水分（ERA5-Land, 逐日, 9km）
+4. **NDVI** — 归一化植被指数（MOD09A1, 8天, 500m）
+5. **LSWI** — 地表水分指数（MOD09A1, 8天, 500m）
+6. **Albedo** — 短波宽波段反照率（MCD43A3, 逐日, 500m）
+7. **DOY** — 日序（物候阶段编码）
+8. **b07 (SWIR2)** — 2.13μm 短波红外反射率，最强水分吸收波段
+
+### 核心结论
+
+- **3 个特征接近 7 个的效果**：ndvi + b07(SWIR2) + doy → R²=0.461（vs 7 特征 0.467）
+- **覆盖率 > 分辨率**：逐日 MOD09GA NDVI (500m) 优于 16 天 MOD13Q1 (250m)
+- **单指标最强**：fPAR (R²=0.318) > NDVI (R²=0.222) > LST (R²=−0.016)
+- **站间差异显著**：馆陶的指标相关性系统性最强，位山最弱。站间 Kcact 基线差 0.05–0.10
+- **大样本 7 指标代理版**：R²=0.748 vs 全特征 46 个 R²=0.769（差仅 0.021）
+
+### 站间差异
+
+同一指标在不同站点的相关性差异可达 0.2–0.3。albedo_sw 在栾城正相关（+0.16）但在位山负相关（−0.54）。LOSO CV 跨站外推时模型的 R² 因此受限。加经纬度或站点哑变量可部分缓解。
+
+## GEE 导出任务
+
+50+ 任务已提交至 Drive 文件夹 `kcact_maize_modis_indicators/`，等待完成后合并。详见 `docs/handover.md` §7。
+
+## 约束
+
+- 单作物建模，不混作物
+- 验证用 Leave-One-Year-Out（LOYO）或 Leave-One-Station-Out（LOSO），禁止随机打散
+- 站点实测数据不外传（`data/raw/*` 已 gitignore）
+- ETc 与 ET0 来源和方法统一
+- 不直接在 README 里粘贴密码、Token 或 API Key
