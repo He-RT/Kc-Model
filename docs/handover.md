@@ -1,6 +1,6 @@
 # Kcact ET Modeling — Handover Document
 
-**Last updated**: 2026-05-01 | **Session**: Station data analyzed + 962 feature combos + GEE exports submitted
+**Last updated**: 2026-05-01 | **Sessions**: zhandian — station ML, 962 combos, per-station analysis, GEE resubmit v3
 
 ## 1. Project Overview
 
@@ -222,7 +222,43 @@ DYLD_LIBRARY_PATH="/opt/homebrew/opt/libomp/lib:$DYLD_LIBRARY_PATH" \
 
 7. **NDVI+EVI+GNDVI as a core trio works well**, capturing greenness, canopy structure, and chlorophyll concentration respectively. With weather + doy + year, reaches within 0.003 of overall best.
 
-## 10. Path Forward
+### 5.5 Per-Station Rank 77 Analysis
+
+Rank 77 (19 features: NDVI+EVI+GNDVI+LSWI + weather + derivatives + interactions + spatiotemporal) tested per station via LOSO CV:
+
+| Test Station | LOSO R² | Notes |
+|-------------|---------|-------|
+| 栾城 | +0.50 | Single growing season, simple pattern |
+| 馆陶 | +0.32 | Highest per-feature correlations but lowest Kcact baseline |
+| 禹城 | +0.28 | Strong interannual variability |
+| 位山 | +0.24 | Highest within-station Kcact variance |
+
+Per-feature correlation breakdown shows consistent ranking across stations (ndvi, lswi, fpar always strongest) but magnitude varies 0.2–0.3. Interaction terms (ndvi×VPD, ndvi_diff) are near-zero at all stations — primary reason simplification helps.
+
+## 10. GEE Export Status (2026-05-01, v3)
+
+Three rounds of submission, two failures:
+
+| Round | Products | Approach | Result |
+|-------|----------|----------|--------|
+| v1 | fpar, LST, albedo, SM | 27K points, daily albedo | fpar/LST/SM OK, albedo OOM |
+| v2 | albedo, S2 raw, S1, MOD09A1 | 27K points, 8-day windows | ALL OOM (fine scale +太多点) |
+| v3 | albedo, S2 raw, S1, MOD09A1 | Per-province (~7K pts), 8-day, tileScale=8, no geometry filter | 84 tasks submitted, monitoring |
+
+**Completed (26 tasks)**: fpar (7), LST (7), ERA5 SM (7), SRTM DEM (1), MOD09A1 (4 of 7)
+
+**In queue (84 tasks)**: Per-province albedo/S2 raw/S1/MOD09A1 for all 7 years
+
+## 11. Repository Notes
+
+- Branch `predict-etc-direct` merged into `main` via no-ff merge
+- `.omc/` and `catboost_info/` untracked via `git rm --cached` + `.gitignore`
+- All `Co-Authored-By: Claude` trailers removed via `git filter-branch`
+- Force pushed to origin; GitHub contributor cache may need minutes to refresh
+- `data/raw/*` gitignored — station Excel data never committed
+- README updated for group use
+
+## 12. Path Forward
 
 1. **Wait for GEE exports** (50 tasks, Drive folder `kcact_maize_modis_indicators`)
 2. **Download + merge** → run `merge_modis_and_retrain_maize.py`
