@@ -6,105 +6,126 @@
 <title>MLPC 远程训练监控</title>
 <style>
   :root {
-    --bg: #050a14;
-    --panel-bg: rgba(12, 20, 35, 0.7);
-    --neon-cyan: #00f3ff;
-    --neon-pink: #ff00ea;
-    --neon-green: #39ff14;
-    --neon-orange: #ff7300;
-    --text-primary: #e0f2fe;
-    --text-dim: #7dd3fc;
-    --border-color: rgba(0, 243, 255, 0.3);
+    --bg-color: #f9fafb;
+    --card-bg: #ffffff;
+    --text-main: #111827;
+    --text-muted: #6b7280;
+    --border-color: #e5e7eb;
+    
+    --color-green: #10b981;
+    --color-yellow: #f59e0b;
+    --color-red: #ef4444;
+    --color-blue: #3b82f6;
+    
+    --radius: 16px;
+    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    --shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
   
   body {
-    background-color: var(--bg);
-    background-image: 
-      linear-gradient(rgba(0, 243, 255, 0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0, 243, 255, 0.03) 1px, transparent 1px);
-    background-size: 20px 20px;
-    color: var(--text-primary);
-    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    background-color: var(--bg-color);
+    color: var(--text-main);
     min-height: 100vh;
-    padding: 20px;
+    padding: 32px 24px;
     display: flex;
     flex-direction: column;
+    align-items: center;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 1200px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
   }
 
   header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 24px;
-    border-bottom: 2px solid var(--neon-cyan);
-    padding-bottom: 10px;
-    box-shadow: 0 4px 15px -10px var(--neon-cyan);
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-color);
   }
 
   h1 {
-    font-size: 24px;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    color: var(--neon-cyan);
-    text-shadow: 0 0 5px var(--neon-cyan);
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-main);
+    letter-spacing: -0.5px;
   }
 
   .meta-info {
     text-align: right;
-    font-size: 12px;
-    color: var(--text-dim);
+    font-size: 13px;
+    color: var(--text-muted);
+    display: flex;
+    gap: 16px;
+    align-items: center;
   }
 
-  .meta-info span { color: var(--neon-pink); }
+  .meta-info span { 
+    font-weight: 500; 
+    color: var(--text-main);
+    font-variant-numeric: tabular-nums;
+  }
 
   .dashboard {
     display: grid;
-    grid-template-columns: 1fr 320px;
+    grid-template-columns: 1fr;
     gap: 24px;
-    flex: 1;
   }
 
-  @media (max-width: 850px) {
-    .dashboard { grid-template-columns: 1fr; }
+  @media (min-width: 900px) {
+    .dashboard { grid-template-columns: 380px 1fr; }
   }
 
-  .panel {
-    background: var(--panel-bg);
+  .card {
+    background: var(--card-bg);
     border: 1px solid var(--border-color);
-    border-radius: 4px;
-    padding: 20px;
-    position: relative;
-    backdrop-filter: blur(5px);
-    box-shadow: inset 0 0 20px rgba(0, 243, 255, 0.05);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: var(--shadow);
+    transition: box-shadow 0.3s ease, transform 0.3s ease;
   }
 
-  .panel::before {
-    content: '';
-    position: absolute;
-    top: -1px; left: -1px;
-    width: 20px; height: 20px;
-    border-top: 2px solid var(--neon-cyan);
-    border-left: 2px solid var(--neon-cyan);
-  }
-  .panel::after {
-    content: '';
-    position: absolute;
-    bottom: -1px; right: -1px;
-    width: 20px; height: 20px;
-    border-bottom: 2px solid var(--neon-cyan);
-    border-right: 2px solid var(--neon-cyan);
+  .card:hover {
+    box-shadow: var(--shadow-hover);
+    transform: translateY(-2px);
   }
 
-  .panel h2 {
-    font-size: 14px;
-    color: var(--neon-pink);
-    margin-bottom: 16px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    border-bottom: 1px dotted var(--border-color);
-    padding-bottom: 5px;
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+  }
+
+  .card h2 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-main);
+  }
+
+  .status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--color-green);
   }
 
   /* GPU Hero */
@@ -116,9 +137,9 @@
 
   .gauge-container {
     position: relative;
-    width: 220px;
-    height: 220px;
-    margin-bottom: 30px;
+    width: 200px;
+    height: 200px;
+    margin-bottom: 32px;
   }
 
   .gauge {
@@ -129,19 +150,18 @@
 
   .gauge-bg {
     fill: none;
-    stroke: rgba(0, 243, 255, 0.1);
-    stroke-width: 12;
+    stroke: var(--border-color);
+    stroke-width: 14;
   }
 
   .gauge-val {
     fill: none;
-    stroke: var(--neon-cyan);
-    stroke-width: 12;
+    stroke: var(--color-blue);
+    stroke-width: 14;
     stroke-dasharray: 502;
     stroke-dashoffset: 502;
     stroke-linecap: round;
-    transition: stroke-dashoffset 0.8s cubic-bezier(0.22, 1, 0.36, 1), stroke 0.5s;
-    filter: drop-shadow(0 0 6px var(--neon-cyan));
+    transition: stroke-dashoffset 1s cubic-bezier(0.22, 1, 0.36, 1), stroke 0.5s;
   }
 
   .gauge-text {
@@ -152,44 +172,55 @@
   }
 
   .gauge-text .perc {
-    font-size: 42px;
-    font-weight: bold;
-    color: var(--text-primary);
-    text-shadow: 0 0 10px rgba(255,255,255,0.3);
+    font-size: 48px;
+    font-weight: 700;
+    color: var(--text-main);
+    line-height: 1;
+    letter-spacing: -1px;
+    font-variant-numeric: tabular-nums;
   }
 
   .gauge-text .label {
     font-size: 12px;
-    color: var(--text-dim);
-    letter-spacing: 1px;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
   }
 
   .stats-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 20px;
     width: 100%;
   }
 
   /* Bars */
   .stat-group {
-    margin-bottom: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
   }
   
   .stat-header {
     display: flex;
     justify-content: space-between;
     font-size: 13px;
-    margin-bottom: 6px;
+    font-weight: 500;
+    color: var(--text-muted);
   }
 
-  .stat-val { color: var(--neon-cyan); font-weight: bold; }
+  .stat-val { 
+    color: var(--text-main); 
+    font-weight: 600; 
+    font-variant-numeric: tabular-nums;
+  }
 
   .bar-container {
-    background: rgba(0,0,0,0.5);
-    border: 1px solid rgba(255,255,255,0.1);
-    height: 14px;
-    border-radius: 2px;
+    background: #f3f4f6;
+    height: 8px;
+    border-radius: 4px;
     overflow: hidden;
     position: relative;
   }
@@ -197,12 +228,12 @@
   .bar-fill {
     height: 100%;
     width: 0%;
-    transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.5s;
-    box-shadow: 0 0 8px currentColor;
+    border-radius: 4px;
+    transition: width 1s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.5s;
   }
 
-  .bar-mem { background-color: var(--neon-pink); color: var(--neon-pink); }
-  .bar-temp { background-color: var(--neon-orange); color: var(--neon-orange); }
+  .bar-mem { background-color: var(--color-blue); }
+  .bar-temp { background-color: var(--color-green); }
 
   /* Side Panel */
   .side-panel {
@@ -211,157 +242,203 @@
     gap: 24px;
   }
 
-  .data-row {
-    display: flex;
-    justify-content: space-between;
-    font-size: 13px;
-    margin-bottom: 8px;
-    padding-bottom: 4px;
-    border-bottom: 1px dashed rgba(255,255,255,0.1);
-  }
-  .data-row:last-child { border-bottom: none; }
-  .data-row .val { color: var(--neon-green); text-shadow: 0 0 4px rgba(57, 255, 20, 0.4); }
-
-  .process-list {
-    margin-top: 10px;
-    max-height: 300px;
-    overflow-y: auto;
-  }
-  
-  /* Scrollbar */
-  .process-list::-webkit-scrollbar { width: 4px; }
-  .process-list::-webkit-scrollbar-track { background: rgba(0,0,0,0.3); }
-  .process-list::-webkit-scrollbar-thumb { background: var(--neon-cyan); }
-
-  .proc-item {
-    background: rgba(0, 243, 255, 0.05);
-    border-left: 2px solid var(--neon-green);
-    padding: 8px;
-    margin-bottom: 8px;
-    font-size: 11px;
-    position: relative;
+  .ram-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    text-align: center;
   }
 
-  .proc-status {
-    position: absolute;
-    top: 8px; right: 8px;
-    width: 6px; height: 6px;
-    background: var(--neon-green);
-    border-radius: 50%;
-    box-shadow: 0 0 5px var(--neon-green);
-    animation: blink 2s infinite;
+  .ram-item {
+    padding: 16px 8px;
+    background: #f9fafb;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
   }
 
-  .proc-cmd {
-    color: var(--text-primary);
+  .ram-label {
+    font-size: 12px;
+    color: var(--text-muted);
     margin-bottom: 4px;
+    font-weight: 500;
+  }
+
+  .ram-val {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-main);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Process Table */
+  .table-container {
+    overflow-x: auto;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 13px;
+  }
+
+  th {
+    padding: 12px 16px;
+    font-weight: 500;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 16px;
+    color: var(--text-main);
+    border-bottom: 1px solid #f3f4f6;
+    font-variant-numeric: tabular-nums;
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+
+  .cmd-cell {
+    max-width: 250px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    padding-right: 15px;
-  }
-  
-  .proc-stats { color: var(--text-dim); }
-
-  @keyframes blink {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+    color: var(--text-muted);
   }
 
-  h1:hover {
-    animation: glitch 0.2s linear infinite;
+  .empty-state {
+    padding: 32px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 14px;
+    background: #f9fafb;
+    border-radius: 12px;
+    border: 1px dashed var(--border-color);
   }
-  
-  @keyframes glitch {
-    0% { transform: translate(0) }
-    20% { transform: translate(-2px, 2px) }
-    40% { transform: translate(-2px, -2px) }
-    60% { transform: translate(2px, 2px) }
-    80% { transform: translate(2px, -2px) }
-    100% { transform: translate(0) }
+
+  @keyframes pulse {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+    70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+  }
+
+  .dot.active {
+    animation: pulse 2s infinite;
   }
 
 </style>
 </head>
 <body>
 
-<header>
-  <h1>MLPC_SYS // 监控终端</h1>
-  <div class="meta-info">
-    <div>系统时间: <span id="time">--:--:--</span></div>
-    <div>数据更新: <span id="countdown">2.0</span>s</div>
-  </div>
-</header>
+<div class="container">
+  <header>
+    <h1>MLPC 训练监控</h1>
+    <div class="meta-info">
+      <div>更新: <span id="countdown">2.0</span>s</div>
+      <div>系统时间: <span id="time">--:--:--</span></div>
+    </div>
+  </header>
 
-<div class="dashboard">
-  <div class="panel">
-    <h2>🎮 GPU (RTX 5060) 核心状态</h2>
-    
-    <div class="gpu-hero">
-      <div class="gauge-container">
-        <svg class="gauge" viewBox="0 0 200 200">
-          <circle class="gauge-bg" cx="100" cy="100" r="80"></circle>
-          <circle class="gauge-val" id="gpu_gauge" cx="100" cy="100" r="80"></circle>
-        </svg>
-        <div class="gauge-text">
-          <div class="perc" id="gpu_util">--%</div>
-          <div class="label">利用率 UTIL</div>
+  <div class="dashboard">
+    <div class="card">
+      <div class="card-header">
+        <h2>GPU 核心状态 (RTX 5060)</h2>
+        <div class="status-indicator">
+          <div class="dot active" id="gpu_status_dot"></div>
+          <span id="gpu_status_text">Online</span>
         </div>
       </div>
+      
+      <div class="gpu-hero">
+        <div class="gauge-container">
+          <svg class="gauge" viewBox="0 0 200 200">
+            <circle class="gauge-bg" cx="100" cy="100" r="80"></circle>
+            <circle class="gauge-val" id="gpu_gauge" cx="100" cy="100" r="80"></circle>
+          </svg>
+          <div class="gauge-text">
+            <div class="perc" id="gpu_util">--<span style="font-size:24px">%</span></div>
+            <div class="label">利用率</div>
+          </div>
+        </div>
 
-      <div class="stats-grid">
-        <div class="stat-group">
-          <div class="stat-header">
-            <span>显存池 VRAM</span>
-            <span class="stat-val" id="gpu_mem">-- / --</span>
+        <div class="stats-grid">
+          <div class="stat-group">
+            <div class="stat-header">
+              <span>显存使用率</span>
+              <span class="stat-val" id="gpu_mem">-- / --</span>
+            </div>
+            <div class="bar-container">
+              <div class="bar-fill bar-mem" id="mem_bar"></div>
+            </div>
           </div>
-          <div class="bar-container">
-            <div class="bar-fill bar-mem" id="mem_bar"></div>
+          
+          <div class="stat-group">
+            <div class="stat-header">
+              <span>核心温度</span>
+              <span class="stat-val" id="gpu_temp">--°C</span>
+            </div>
+            <div class="bar-container">
+              <div class="bar-fill bar-temp" id="temp_bar"></div>
+            </div>
           </div>
-        </div>
-        
-        <div class="stat-group">
-          <div class="stat-header">
-            <span>核心温度 TEMP</span>
-            <span class="stat-val" id="gpu_temp">--°C</span>
-          </div>
-          <div class="bar-container">
-            <div class="bar-fill bar-temp" id="temp_bar"></div>
-          </div>
-        </div>
-        
-        <div class="stat-group" style="grid-column: 1 / -1;">
-          <div class="stat-header">
-            <span>实时功耗 PWR</span>
-            <span class="stat-val" id="gpu_power">-- W</span>
+          
+          <div class="stat-group" style="margin-top: 8px; flex-direction: row; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding-top: 16px;">
+            <span class="stat-header" style="color: var(--text-main); font-weight: 500;">实时功耗</span>
+            <span class="stat-val" style="font-size: 16px;" id="gpu_power">-- W</span>
           </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <div class="side-panel">
-    <div class="panel">
-      <h2>🖥 系统资源 CPU & RAM</h2>
-      <div class="data-row">
-        <span>物理内存 TOTAL</span>
-        <span class="val" id="ram_total">--</span>
+    <div class="side-panel">
+      <div class="card">
+        <div class="card-header">
+          <h2>系统资源</h2>
+        </div>
+        <div class="ram-grid">
+          <div class="ram-item">
+            <div class="ram-label">物理内存</div>
+            <div class="ram-val" id="ram_total">--</div>
+          </div>
+          <div class="ram-item">
+            <div class="ram-label">已分配</div>
+            <div class="ram-val" id="ram_used">--</div>
+          </div>
+          <div class="ram-item">
+            <div class="ram-label">可用资源</div>
+            <div class="ram-val" id="ram_free">--</div>
+          </div>
+        </div>
       </div>
-      <div class="data-row">
-        <span>已分配 ALLOC</span>
-        <span class="val" id="ram_used">--</span>
-      </div>
-      <div class="data-row">
-        <span>可用资源 FREE</span>
-        <span class="val" id="ram_free">--</span>
-      </div>
-    </div>
 
-    <div class="panel" style="flex: 1;">
-      <h2>⚙️ 训练进程拓扑 PROCS</h2>
-      <div class="process-list" id="procs">
-        <div class="proc-item" style="border-color: rgba(255,255,255,0.2)">
-          <div class="proc-cmd">正在建立上行链路...</div>
+      <div class="card" style="flex: 1;">
+        <div class="card-header">
+          <h2>活动训练进程</h2>
+        </div>
+        <div class="table-container">
+          <table id="procs_table">
+            <thead>
+              <tr>
+                <th>PID</th>
+                <th>命令</th>
+                <th>CPU</th>
+                <th>MEM</th>
+                <th>运行时长</th>
+              </tr>
+            </thead>
+            <tbody id="procs_body">
+              <tr>
+                <td colspan="5">
+                  <div class="empty-state">正在建立上行链路...</div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -373,18 +450,16 @@ const STATS_URL = 'http://192.168.1.118:8765/stats.json';
 let lastUpdate = Date.now();
 const refreshInterval = 2000;
 
-function updateColor(val, element, isGauge = false) {
-  let color = 'var(--neon-cyan)';
-  if (val > 85) color = 'var(--neon-pink)';
-  else if (val > 60) color = 'var(--neon-orange)';
-  
-  if (isGauge) {
-    element.style.stroke = color;
-    element.style.filter = `drop-shadow(0 0 6px ${color})`;
-  } else {
-    element.style.backgroundColor = color;
-    element.style.color = color;
-  }
+function getColor(val) {
+  if (val > 85) return 'var(--color-red)';
+  if (val > 60) return 'var(--color-yellow)';
+  return 'var(--color-blue)';
+}
+
+function getTempColor(val) {
+  if (val > 80) return 'var(--color-red)';
+  if (val > 65) return 'var(--color-yellow)';
+  return 'var(--color-green)';
 }
 
 async function refresh() {
@@ -394,7 +469,12 @@ async function refresh() {
     
     lastUpdate = Date.now();
     document.getElementById('time').textContent = s.time;
-    document.getElementById('time').style.color = 'var(--text-dim)';
+    
+    const statusDot = document.getElementById('gpu_status_dot');
+    const statusText = document.getElementById('gpu_status_text');
+    statusDot.style.backgroundColor = 'var(--color-green)';
+    statusDot.classList.add('active');
+    statusText.textContent = 'Online';
 
     // RAM
     if (s.ram && s.ram.length >= 3) {
@@ -406,12 +486,12 @@ async function refresh() {
     // GPU
     if (s.gpu && typeof s.gpu === 'object') {
       const u = parseInt(s.gpu.util) || 0;
-      document.getElementById('gpu_util').textContent = u + '%';
+      document.getElementById('gpu_util').innerHTML = `${u}<span style="font-size:24px">%</span>`;
       
       const gauge = document.getElementById('gpu_gauge');
       const offset = 502 - (502 * u / 100);
       gauge.style.strokeDashoffset = offset;
-      updateColor(u, gauge, true);
+      gauge.style.stroke = getColor(u);
 
       const memParts = s.gpu.mem_used ? s.gpu.mem_used.split(' ') : ['0'];
       const memVal = parseInt(memParts[0]) || 0;
@@ -422,36 +502,43 @@ async function refresh() {
       document.getElementById('gpu_mem').textContent = `${memVal} / ${totalVal} MiB (${memPct}%)`;
       const memBar = document.getElementById('mem_bar');
       memBar.style.width = memPct + '%';
+      memBar.style.backgroundColor = getColor(memPct);
 
       const temp = parseInt(s.gpu.temp) || 0;
       document.getElementById('gpu_temp').textContent = temp + '°C';
       const tempBar = document.getElementById('temp_bar');
       const tempPct = Math.min((temp / 100) * 100, 100);
       tempBar.style.width = tempPct + '%';
-      updateColor(tempPct, tempBar, false);
+      tempBar.style.backgroundColor = getTempColor(temp);
 
       document.getElementById('gpu_power').textContent = (s.gpu.power || '--') + ' W';
     }
 
     // Processes
-    const pc = document.getElementById('procs');
+    const tbody = document.getElementById('procs_body');
     if (s.processes && s.processes.length > 0) {
-      pc.innerHTML = '';
+      tbody.innerHTML = '';
       s.processes.forEach(p => {
-        pc.innerHTML += `
-          <div class="proc-item">
-            <div class="proc-status"></div>
-            <div class="proc-cmd">${p.cmd}</div>
-            <div class="proc-stats">PID: ${p.pid} | CPU: ${p.cpu}% | MEM: ${p.mem}% | TIME: ${p.time}</div>
-          </div>
+        tbody.innerHTML += `
+          <tr>
+            <td>${p.pid}</td>
+            <td class="cmd-cell" title="${p.cmd}">${p.cmd}</td>
+            <td>${p.cpu}%</td>
+            <td>${p.mem}%</td>
+            <td>${p.time}</td>
+          </tr>
         `;
       });
     } else {
-      pc.innerHTML = `<div class="proc-item" style="border-color: rgba(255,255,255,0.2);"><div class="proc-cmd">暂无活动训练任务</div></div>`;
+      tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state">暂无活动训练任务</div></td></tr>`;
     }
   } catch(e) {
-    document.getElementById('time').textContent = '连接中断 [OFFLINE]';
-    document.getElementById('time').style.color = 'var(--neon-pink)';
+    document.getElementById('time').textContent = '--:--:--';
+    const statusDot = document.getElementById('gpu_status_dot');
+    const statusText = document.getElementById('gpu_status_text');
+    statusDot.style.backgroundColor = 'var(--color-red)';
+    statusDot.classList.remove('active');
+    statusText.textContent = 'Offline';
   }
 }
 
