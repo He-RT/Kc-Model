@@ -227,6 +227,8 @@ def compute_et0_fao56(weather_df: pd.DataFrame) -> pd.DataFrame:
         df["centroid_lat"], df["doy"]
     )
     # 8b. 晴空辐射 Rso  (FAO-56 Eq.37)
+    if "elevation_m" not in df.columns:
+        print("  WARNING: elevation_m missing, Rso computed with Z=0 (may slightly underestimate)")
     df["rso_mj_m2_d"] = clear_sky_radiation_mj_m2_d(
         df["ra_mj_m2_d"], df.get("elevation_m", 0.0)
     )
@@ -260,7 +262,7 @@ def compute_et0_fao56(weather_df: pd.DataFrame) -> pd.DataFrame:
     numerator = (
         0.408 * df["delta_kpa_c"] * df["rn_mj_m2_d"]           # 辐射项
         + df["gamma_kpa_c"]                                      # 空气动力项
-        * (900.0 / (df["tmean_c"] + 273.16))
+        * (900.0 / (df["tmean_c"] + 273.0))   # Eq.6 原文 T+273
         * df["wind_2m_m_s"]
         * df["vpd_kpa"]
     )
