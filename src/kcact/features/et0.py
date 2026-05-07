@@ -155,12 +155,13 @@ def compute_et0_fao56(weather_df: pd.DataFrame) -> pd.DataFrame:
       - date          : 日期 (YYYY-MM-DD)
       - tmin_c        : 日最低气温 [°C]
       - tmax_c        : 日最高气温 [°C]
-      - tmean_c       : 日平均气温 [°C] (有Tmax/Tmin时自动覆盖为均值)
       - solar_rad_mj_m2_d : 太阳辐射 [MJ/m²/d]
       - wind_10m_m_s  : 10m风速 [m/s] (或wind_2m_m_s)
       - centroid_lat  : 纬度 [度]
       - elevation_m   : 海拔 [m] (或pressure_kpa)
       - dewpoint_c    : 露点温度 [°C] (或rh_mean)
+
+    tmean_c 由 (Tmax+Tmin)/2 自动计算 (FAO-56 Eq.9)，无需外部传入。
     """
     df = weather_df.copy()
 
@@ -173,9 +174,11 @@ def compute_et0_fao56(weather_df: pd.DataFrame) -> pd.DataFrame:
     df["doy"] = df["date"].dt.dayofyear  # 日序 (1月1日=1)
 
     # ---- 步骤1: 日平均气温 ----
-    # FAO-56 Eq.9: Tmean = (Tmax+Tmin)/2, 不用小时均值
-    if "tmax_c" in df.columns and "tmin_c" in df.columns:
-        df["tmean_c"] = (df["tmax_c"] + df["tmin_c"]) / 2.0
+    # 不管传入的tmean_c是什么，统一按FAO-56 Eq.9重算。
+    # 手册原文: "Tmean被定义为日最高和日最低温度的均值，而不是小时观测温度的平均值"
+    if "tmax_c" not in df.columns or "tmin_c" not in df.columns:
+        raise ValueError("tmax_c and tmin_c are required to compute Tmean per FAO-56 Eq.9")
+    df["tmean_c"] = (df["tmax_c"] + df["tmin_c"]) / 2.0
 
     # ---- 步骤2: 风速转换（如需）----
     # 优先用2m风速，否则从10m转换 (FAO-56 Eq.47)
