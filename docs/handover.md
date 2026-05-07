@@ -1,6 +1,6 @@
 # Kcact ET Modeling — Handover Document
 
-**Last updated**: 2026-05-06 | **Sessions**: zhandian, remote | **Desktop**: mlpc (RTX 5060) running
+**Last updated**: 2026-05-08 | **Sessions**: zhandian, remote | **Desktop**: mlpc (RTX 5060)
 
 ## 1. Project Overview
 
@@ -291,6 +291,16 @@ Three rounds of submission, two failures:
 - Uses ERA5-Land dewpoint temperature when available (most accurate ea calculation)
 - Without dewpoint: RHmean simplification (≠ textbook RHmax/RHmin weighting)
 - Difference from textbook method: ~2.5%
+
+### VI Permutation & RDVI (2026-05-08)
+- 255 combos with RDVI added: R² ceiling 0.661, RDVI adds 0.001 over baseline
+- 5 VIs (NDVI/EVI/GNDVI/SAVI/RDVI) are highly collinear — any 1-2 + SM + DOY ≈ any 5
+- MOD09A1 7-band full set (b01-b07) now available locally (56 new CSV files)
+
+### Growth Stage Split (2026-05-08)
+- 5 stages tested: Rapid growth (180-210) R²=0.51 best, Peak/tasseling (210-240) R²=0.10 worst
+- Full-season R²=0.66 is 83% DOY-driven — stage-split exposes NDVI saturation ceiling
+- SHAP confirms DOY dominates full-season prediction
 
 ### Data Source Lessons Learned
 - MODIS NDVI coverage determines ranking: 8-day (100%) >> 16-day (50%)
