@@ -154,6 +154,9 @@ def fetch_all_era5_data(
 # ---------------------------------------------------------------------------
 
 
+# =========================================================
+# 步骤2: 计算逐日ET0并匹配到观测窗口
+# =========================================================
 def compute_et0_and_merge(
     era5_df: pd.DataFrame,
     obs_df: pd.DataFrame,
@@ -198,14 +201,19 @@ def compute_et0_and_merge(
             t_curr = row["date"]
             etc_obs = row["etc_8d_mm_d"]
 
-            # Determine window start: previous observation date, or nominal 8 days
+            # ---- 确定观测窗口 ----
+            # 窗口: (上一个观测日, 当前观测日]
+            # 第一个观测回退8天作为名义窗口
             if i == 0:
                 t_prev = t_curr - pd.Timedelta(days=8)
             else:
                 t_prev = stn_obs.iloc[i - 1]["date"]
 
-            # Station dates are local (UTC+8), ERA5 dates are UTC.
-            # Subtract 8h to align: local T → UTC T-8h
+            # ---- 时区修正 ----
+            # 站点观测时间是北京时间 (UTC+8)
+            # ERA5-Land数据日期是UTC时间
+            # 例如: 观测"2003-01-01 00:00"北京时间 = "2002-12-31 16:00" UTC
+            # 所以匹配时减8小时: 本地时间 → UTC
             TZ_OFFSET = pd.Timedelta(hours=8)
             t_prev_utc = t_prev - TZ_OFFSET
             t_curr_utc = t_curr - TZ_OFFSET
@@ -253,6 +261,14 @@ def compute_et0_and_merge(
 
 
 def main():
+    """站点ET0计算主流程
+
+    数据流:
+      站点观测Excel → 整洁CSV
+      GEE提取ERA5-Land逐日气象 → 本地CSV(已缓存)
+      ERA5逐日数据 → FAO-56 PM公式 → 逐日ET0
+      逐日ET0 → 按观测窗口聚合 → 与ETc匹配 → Kcact = ETc/ET0
+    """
     print("=" * 60)
     print("Station ET0 Computation Pipeline")
     print("=" * 60)
@@ -293,11 +309,15 @@ def main():
     print("\n--- Computing FAO-56 ET0 and matching to observations ---")
     result = compute_et0_and_merge(era5_daily, obs_df, stn_df, elevations)
 
-    # Save
+    # ---- 保存结果 ----
+    # Kcact: 作物实际系数 = ETc(实测) / ET0(计算)
+    # Kc > 1: 作物蒸腾超过草地参照 → 作物旺盛生长期
+    # Kc < 0.5: 裸土/休眠期/收割后
+    # 理论范围: 0–1.2 (实际可能略超)
     result.to_csv(OUTPUT_PATH, index=False)
     print(f"\nSaved to {OUTPUT_PATH} ({len(result)} rows)")
 
-    # Quick summary
+    # ---- 输出概要 ----
     valid = result[result["kcact"].notna()]
     print(f"\nValid Kcact records: {len(valid)} / {len(result)}")
     print(f"Kcact range: {valid['kcact'].min():.4f} – {valid['kcact'].max():.4f}")
