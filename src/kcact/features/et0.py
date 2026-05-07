@@ -152,7 +152,7 @@ def compute_et0_fao56(weather_df: pd.DataFrame) -> pd.DataFrame:
     numerator = (
         0.408 * df["delta_kpa_c"] * df["rn_mj_m2_d"]
         + df["gamma_kpa_c"]
-        * (900.0 / (df["tmean_c"] + 273.0))
+        * (900.0 / (df["tmean_c"] + 273.16))
         * df["wind_2m_m_s"]
         * df["vpd_kpa"]
     )
