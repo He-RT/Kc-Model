@@ -4,12 +4,13 @@
 
 **当前最优模型**：
 
-| 作物 | 数据规模 | 样本数 | LOYO R² | 特征数 |
-|------|---------|--------|---------|--------|
-| 冬小麦 | 河北 592 patches, 2019–2025 | 18,528 | 0.702 | 46 |
-| 夏玉米 | 华北四省 7,153 patches, 2019–2025 | 397,628 | **0.769** (indirect) / **0.729** (7 feat) | 46 / 7 |
-| 夏玉米（站点验证） | 4 通量站, 2003–2015 | 304 | **0.486** (Kc) / **0.518** (ETc+ET0) | 5 |
-| 夏玉米（站点，MODIS实数据） | 4 通量站, 2003–2015 | 304 | 0.518 | 5 (GNDVI+ΔLST+Albedo+DOY+ET0) |
+| 作物 | 数据规模 | 样本数 | LOYO R² | 特征数 | 备注 |
+|------|---------|--------|---------|--------|------|
+| 冬小麦 | 河北 592 patches, 2019–2025 | 18,528 | 0.702 | 46 | |
+| 夏玉米 | 华北四省 7,153 patches, 2019–2025 | 397,628 | **0.758** (9 feat) / **0.765** (51 feat) | 9 / 51 | 859组合全量实验 |
+| 夏玉米 | 同上，无天气版 | 同上 | **0.684** (8 feat) | 8 | 纯遥感+DOY |
+| 夏玉米 | 同上，ETc直接预测 | 同上 | **0.762** (9 feat) | 9 | 直接法≈间接法 |
+| 夏玉米（站点） | 4 通量站, 2003–2015 | 304 | **0.467** (7 feat) / **0.518** (ETc+ET0) | 5-7 |
 
 ## 数据流
 
@@ -65,7 +66,19 @@ pip install catboost xgboost lightgbm scikit-learn pandas numpy pyarrow openpyxl
 # GPU 自动检测
 ```
 
-核心依赖：`catboost scikit-learn pandas numpy pyarrow openpyxl earthengine-api`
+核心依赖：`catboost scikit-learn pandas numpy pyarrow openpyxl earthengine-api shap`
+
+### 远程训练 (mlpc)
+
+台式机 7500F + RTX 5060 (CUDA 13.1)，GPU 加速训练，M5 的 5-10x 速度。
+```bash
+ssh mlpc  # 已配密钥
+# 代码: git push/pull
+# 数据: rsync -avz ./data/ mlpc:~/dcsdxx/data/
+# 训练: ssh mlpc "cd ~/dcsdxx && nohup python scripts/xxx.py > ~/log 2>&1 &"
+# 进度: ssh mlpc "tail -20 ~/log"
+# 监控: http://192.168.1.118:8765/mlpc_monitor.html
+```
 
 ## 快速开始（桌面版）
 
@@ -98,6 +111,10 @@ python scripts/python/plot_station_kcact.py        # 9 张 Nature 风格图
 | `train_maize_500_combos.py` | 962 组合 LOSO CV，夏玉米站点特征选择 |
 | `train_station_ml_combos.py` | 141 组合全季节站点训练 |
 | `plot_station_kcact.py` | Nature-style 宋体 Kcact 折线图（9 张） |
+| `desktop_merge_and_train.py` | 合并 MODIS 指标 + 训练 Top 50 站点组合 |
+| `desktop_exhaustive_combos.py` | 全量组合（859个）LOYO CV |
+| `stats_collector.py` | mlpc CPU/GPU 状态收集 |
+| `mlpc_monitor.html` | 远程训练实时监控仪表盘 |
 
 ### 大样本训练
 
@@ -162,6 +179,25 @@ python scripts/python/plot_station_kcact.py        # 9 张 Nature 风格图
 文件位置：`data/raw/gee/kcact_maize_modis_indicators/`（54个CSV）
 
 合并后 parquet：`data/processed/train/ncp_summer_maize_kcact_with_modis.parquet`
+
+## 关键发现 (2026-05)
+
+### Kc 间接 vs ETc 直接
+大样本（37万）上直接预测 ETc 与间接法（Kc×ET0）效果等价（R² 差异 <0.01）。小样本上间接法更稳定。详见 §Kc 间接法 vs ETc 直接法。
+
+### 天气变量的贡献
+大样本上天气四变量（VPD + 降水 + 太阳辐射 + 气温）单独贡献 R² 约 0.07。无天气时遥感和 DOY 最优 R²=0.684。DOY 同时编码了物候和季节平均气候，是小样本的关键特征。
+
+### SHAP 特征重要性
+- **站点**：fPAR、ΔLST、Albedo 是最强三特征，DOY 在不含天气组合中频繁出现
+- **大样本**：fPAR + NDVI + SWIR2(b07) + LSWI + DOY 是最小充分集
+
+### 站间差异
+同一指标在不同站点的相关性差异可达 0.2-0.3。LOSO CV 跨站外推时 R² 因此受限。
+
+## ET0 计算说明
+
+站点 ET0 采用 FAO-56 Penman-Monteith 公式（`src/kcact/features/et0.py`），输入为 ERA5-Land 逐日气象。当有露点温度时直接计算 ea（最准确），无露点时用 RHmean 估算。教材例题用 RHmax/RHmin 加权算法，结果差约 2.5%。
 
 ## 约束
 

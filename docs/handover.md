@@ -1,6 +1,6 @@
 # Kcact ET Modeling — Handover Document
 
-**Last updated**: 2026-05-01 | **Sessions**: zhandian | **Ready for**: Desktop transfer (RTX 5060)
+**Last updated**: 2026-05-06 | **Sessions**: zhandian, remote | **Desktop**: mlpc (RTX 5060) running
 
 ## 1. Project Overview
 
@@ -249,40 +249,14 @@ Three rounds of submission, two failures:
 
 **In queue (84 tasks)**: Per-province albedo/S2 raw/S1/MOD09A1 for all 7 years
 
-## 11. Desktop Transfer Checklist
+## 11. Desktop (mlpc) Status
 
-### Environment Setup (Windows/Linux, RTX 5060)
-```bash
-conda create -n sdxx python=3.11 -y && conda activate sdxx
-pip install catboost xgboost lightgbm scikit-learn pandas numpy pyarrow openpyxl earthengine-api
-# GPU auto-detected by CatBoost/XGBoost/LightGBM
-```
-
-### Must-Have Local Data (copy from Mac)
-- `data/raw/实际蒸散发观测数据.xlsx` — station ETc observations (manually copy, gitignored)
-- `data/raw/gee/kcact_maize_modis_indicators/` — 54 GEE CSV exports (copy from Mac)
-- `data/raw/gee/*_maize_*.csv` — existing S2/ERA5/MOD16 exports (copy from Mac)
-- `data/processed/train/*.parquet` — training tables (copy from Mac or rebuild)
-
-### First Commands on Desktop
-```bash
-# Station analysis:
-python scripts/python/compute_station_et0.py      # Excel → ET0 + Kcact
-python scripts/python/train_maize_500_combos.py   # 962 combos station
-
-# Large sample (after copying GEE CSVs):
-python scripts/python/merge_modis_yearly.py        # Merge MODIS + train
-
-# Figures:
-python scripts/python/plot_station_kcact.py        # 9 Nature-style figs
-```
-
-### GPU Speedup Estimate
-| Task | Mac M5 | Desktop RTX 5060 |
-|------|--------|-----------------|
-| 962 combos station | ~20 min | ~3 min |
-| Large sample 1 combo | ~10 min | ~1 min |
-| 500 combos large sample | ~80 h | ~8 h |
+- **SSH**: `ssh mlpc` (192.168.1.118, key auth, no sshpass needed)
+- **Code sync**: git push/pull
+- **Data sync**: `rsync -avz ./data/ mlpc:~/dcsdxx/data/`
+- **Monitor**: `http://192.168.1.118:8765/mlpc_monitor.html`
+- **GPU**: RTX 5060, CUDA 13.1, CatBoost `task_type='GPU'`
+- **Speed**: ~5-10x faster than M5 for CatBoost training
 
 ## 13. Repository Notes
 
@@ -293,14 +267,47 @@ python scripts/python/plot_station_kcact.py        # 9 Nature-style figs
 - `data/raw/*` gitignored — station Excel data never committed
 - README updated for group use
 
+## 12. Latest Findings (2026-05-02 ~ 05-06)
+
+### 859-Combo Exhaustive Sweep (Large Sample)
+- Best: **9 features R²=0.758** (fpar+SM+NDVI+LSWI+DOY+VPD+precip+solar+tmean)
+- Full: 51 features R²=0.765 — gap only 0.007
+- Top 20 all cluster at 0.756-0.758
+- No-weather best: 8 features R²=0.684 (fpar+ΔLST+SM+NDVI+SWIR2+LSWI+Albedo+DOY)
+- Weather variables contribute ~0.07 R² independently
+
+### Kc Indirect vs ETc Direct
+- Large sample (370K): ETc direct ≈ Kc indirect (R² diff < 0.01)
+- Station (304): ETc+ET0 > Kc indirect (0.518 vs 0.486)
+- Without weather: ETc direct >> Kc indirect (0.746 vs 0.666) because Kc needs ET0 context
+
+### SHAP Feature Importance
+- Station: fPAR, ΔLST, Albedo are strongest 3 features
+- Large sample: fPAR + NDVI + SWIR2(b07) + LSWI + DOY is minimal sufficient set
+- DOY appears in 6/10 station top combos — codes both phenology and seasonal climate
+
+### ET0 Calculation
+- FAO-56 Penman-Monteith via `src/kcact/features/et0.py`
+- Uses ERA5-Land dewpoint temperature when available (most accurate ea calculation)
+- Without dewpoint: RHmean simplification (≠ textbook RHmax/RHmin weighting)
+- Difference from textbook method: ~2.5%
+
+### Data Source Lessons Learned
+- MODIS NDVI coverage determines ranking: 8-day (100%) >> 16-day (50%)
+- SWIR2(b07, 2.13μm) is single strongest raw band for Kcact — better than any VI alone
+- GEE exports: split by province to avoid OOM (27K points per task = memory overflow)
+- Albedo/S2 raw/S1 SAR: 3 export rounds, 109+84 failures — use v3 per-province approach
+
 ## 14. Path Forward
 
-1. **Wait for GEE exports** (50 tasks, Drive folder `kcact_maize_modis_indicators`)
-2. **Download + merge** → run `merge_modis_and_retrain_maize.py`
-3. **Run 500+ combo tests** on large sample with full feature set (~57 features)
-4. **Compare station-optimized combos vs large-sample-optimized combos**
-5. **Add SIF (TROPOMI)** if available — most direct photosynthesis measurement
-6. **Consider Sentinel-1 SAR** integration once exports complete
+1. ~~GEE exports~~ → 54 CSVs downloaded, MODIS fPAR/LST/NDVI/SWIR2 merged
+2. ~~500+ combo tests~~ → 859 combos complete, exhaustive sweep done
+3. ~~Station vs large-sample comparison~~ → findings documented in §12
+4. **Add SIF (TROPOMI)** if available — most direct photosynthesis measurement
+5. **Sentinel-1 SAR** — GEE exports failed (OOM), consider alternative approach
+6. **Direct ETc prediction with full features** — promising direction (0.762 vs 0.758 for Kc)
+7. **SHAP for all top combos** — partial done, extend to weather-included combos
+8. **Paper writeup** — core results ready for manuscript
 
 ## 11. Known Issues / Gotchas
 
