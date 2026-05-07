@@ -51,9 +51,10 @@ def merge_time_series(df, path, col_map, date_col="date", scale=1.0):
         df[dst] = np.nan
         if src not in ts.columns:
             continue
+        TZ = pd.Timedelta(hours=8)  # local→UTC
         for _, row in df.iterrows():
             stn, tp, tc = row["station"], row["date_prev"], row["date"]
-            w = ts[(ts["station"]==stn) & (ts[date_col]>tp) & (ts[date_col]<=tc)]
+            w = ts[(ts["station"]==stn) & (ts[date_col]>(tp-TZ)) & (ts[date_col]<=(tc-TZ))]
             if len(w) > 0:
                 df.at[row.name, dst] = w[src].mean() * scale
         df[dst] = df.groupby("station")[dst].transform(lambda x: x.fillna(x.median()))

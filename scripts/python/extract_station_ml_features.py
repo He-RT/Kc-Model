@@ -212,6 +212,10 @@ def build_merged_dataset(obs_df, stn_df, all_ts):
             t_curr = ob["date"]
             t_prev = stn_obs.iloc[i - 1]["date"] if i > 0 else t_curr - pd.Timedelta(days=8)
 
+            # Station dates are local (UTC+8), GEE data is UTC. Subtract 8h to align.
+            TZ = pd.Timedelta(hours=8)
+            t_prev_utc, t_curr_utc = t_prev - TZ, t_curr - TZ
+
             row = {
                 "station": stn,
                 "date": t_curr.strftime("%Y-%m-%d"),
@@ -227,16 +231,16 @@ def build_merged_dataset(obs_df, stn_df, all_ts):
                 stn_ts = ts_df[ts_df["station"] == stn].copy()
                 stn_ts["date"] = pd.to_datetime(stn_ts["date"])
                 window = stn_ts[
-                    (stn_ts["date"] > t_prev) & (stn_ts["date"] <= t_curr)
+                    (stn_ts["date"] > t_prev_utc) & (stn_ts["date"] <= t_curr_utc)
                 ][col]
                 if len(window) > 0:
                     row[col] = window.mean()
                 else:
                     # Fallback: nearest date within ±4 days
                     nearest = stn_ts.iloc[
-                        (stn_ts["date"] - t_curr).abs().argsort()[:1]
+                        (stn_ts["date"] - t_curr_utc).abs().argsort()[:1]
                     ]
-                    if len(nearest) > 0 and abs((nearest["date"].iloc[0] - t_curr).days) <= 4:
+                    if len(nearest) > 0 and abs((nearest["date"].iloc[0] - t_curr_utc).days) <= 4:
                         row[col] = nearest[col].iloc[0]
                     else:
                         row[col] = np.nan

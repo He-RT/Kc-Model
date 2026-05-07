@@ -100,6 +100,10 @@ def compute_et0_fao56(weather_df: pd.DataFrame) -> pd.DataFrame:
     df["date"] = pd.to_datetime(df["date"])
     df["doy"] = df["date"].dt.dayofyear
 
+    # FAO-56 Eq.9: Tmean = (Tmax+Tmin)/2, not the hourly average
+    if "tmax_c" in df.columns and "tmin_c" in df.columns:
+        df["tmean_c"] = (df["tmax_c"] + df["tmin_c"]) / 2.0
+
     if "wind_2m_m_s" not in df.columns:
         if "wind_10m_m_s" not in df.columns:
             raise ValueError("Need wind_2m_m_s or wind_10m_m_s to compute ET0")

@@ -204,8 +204,14 @@ def compute_et0_and_merge(
             else:
                 t_prev = stn_obs.iloc[i - 1]["date"]
 
-            # Mean daily ET0 over the observation window (t_prev < day <= t_curr)
-            window_et0 = stn_et0.loc[(stn_et0.index > t_prev) & (stn_et0.index <= t_curr)]
+            # Station dates are local (UTC+8), ERA5 dates are UTC.
+            # Subtract 8h to align: local T → UTC T-8h
+            TZ_OFFSET = pd.Timedelta(hours=8)
+            t_prev_utc = t_prev - TZ_OFFSET
+            t_curr_utc = t_curr - TZ_OFFSET
+
+            # Mean daily ET0 over the observation window in UTC
+            window_et0 = stn_et0.loc[(stn_et0.index > t_prev_utc) & (stn_et0.index <= t_curr_utc)]
             if len(window_et0) > 0 and etc_obs > 0:
                 et0_mean = window_et0["et0_pm_mm"].mean()
                 et0_sum = window_et0["et0_pm_mm"].sum()

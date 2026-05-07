@@ -51,10 +51,11 @@ def merge_raw_bands(df):
     raw["date"] = pd.to_datetime(raw["date"])
     raw = raw.rename(dict(zip(RAW_BAND_NAMES, RAW_RENAMED)), axis=1)
     result = df.copy()
+    TZ = pd.Timedelta(hours=8)  # local→UTC
     for col in RAW_RENAMED: result[col] = np.nan
     for _, row in result.iterrows():
         stn, tp, tc = row["station"], row["date_prev"], row["date"]
-        w = raw[(raw["station"]==stn) & (raw["date"]>tp) & (raw["date"]<=tc)]
+        w = raw[(raw["station"]==stn) & (raw["date"]>(tp-TZ)) & (raw["date"]<=(tc-TZ))]
         if len(w) > 0:
             for col in RAW_RENAMED: result.at[row.name, col] = w[col].mean()
     for col in RAW_RENAMED:
@@ -65,10 +66,11 @@ def merge_era5_weather(df):
     w = pd.read_csv(ERA5_PATH)
     w["date"] = pd.to_datetime(w["date"])
     result = df.copy()
+    TZ = pd.Timedelta(hours=8)
     for col in ERA5_VARS: result[col] = np.nan
     for _, row in result.iterrows():
         stn, tp, tc = row["station"], row["date_prev"], row["date"]
-        win = w[(w["station"]==stn) & (w["date"]>tp) & (w["date"]<=tc)]
+        win = w[(w["station"]==stn) & (w["date"]>(tp-TZ)) & (w["date"]<=(tc-TZ))]
         if len(win) > 0:
             for col in ERA5_VARS: result.at[row.name, col] = win[col].mean()
     for col in ERA5_VARS:
