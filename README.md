@@ -206,9 +206,15 @@ MOD09A1 全套 7 波段 (b01-b07) 已下载 (56 新文件 + 原有 = 110 文件)
 ### 站间差异
 同一指标在不同站点的相关性差异可达 0.2-0.3。LOSO CV 跨站外推时 R² 因此受限。
 
-## ET0 计算说明
+## ET0 计算说明 (FAO-56 完全审计通过)
 
-站点 ET0 采用 FAO-56 Penman-Monteith 公式（`src/kcact/features/et0.py`），输入为 ERA5-Land 逐日气象。当有露点温度时直接计算 ea（最准确），无露点时用 RHmean 估算。教材例题用 RHmax/RHmin 加权算法，结果差约 2.5%。
+- 公式: FAO-56 Penman-Monteith Eq.6, 所有参数标注公式编号（参见 `src/kcact/features/et0.py`）
+- Tmean = (Tmax+Tmin)/2 (Eq.9), T+273 (Eq.6 分母), T+273.16 (Eq.39 Stefan-Boltzmann)
+- ea 从露点温度直接计算 (Eq.14, 最准确方法)
+- 站点观测 UTC+8 → ERA5 UTC 已做8小时时区对齐
+- 站点高程已应用 (禹城20.6m, 位山34m, 馆陶41.9m, 栾城53.2m)
+- 修正后图表: `outputs/figures/corrected/maize_fig*.png`
+- 修正后数据: `outputs/tables/station_etc_et0_kcact.xlsx`
 
 ## 约束
 

@@ -1,6 +1,6 @@
 # Kcact ET Modeling — Handover Document
 
-**Last updated**: 2026-05-08 | **Sessions**: zhandian, remote | **Desktop**: mlpc (RTX 5060)
+**Last updated**: 2026-05-10 | **Sessions**: zhandian, remote | **Ready for compact**
 
 ## 1. Project Overview
 
@@ -302,6 +302,29 @@ Three rounds of submission, two failures:
 - Full-season R²=0.66 is 83% DOY-driven — stage-split exposes NDVI saturation ceiling
 - SHAP confirms DOY dominates full-season prediction
 
+### Corrected ET0 & Station Figures (2026-05-09)
+- ET0 code fully aligned with FAO-56: Tmean=(Tmax+Tmin)/2 (Eq.9), T+273 (Eq.6 denominator), T+273.16 (Eq.39)
+- UTC+8 timezone correction for station observation matching
+- Station elevation from SRTM applied (禹城20.6m, 位山34m, 馆陶41.9m, 栾城53.2m)
+- 5 summer maize Kcact figures regenerated: `outputs/figures/corrected/maize_fig*.png`
+- Corrected xlsx: `outputs/tables/station_etc_et0_kcact.xlsx`
+
+### Satellite SM Attempts (2026-05-09)
+- ESA CCI SM: not on CDS, not on GEE (requires separate auth) — not yet downloaded
+- GLDAS SM: 13 GEE export tasks submitted (Drive folder `kcact_maize_modis_indicators`)
+  - GLDAS is model-based (NASA Noah), not true satellite retrieval — similar to ERA5-Land
+- ERA5-Land SM: already extracted (29M rows), used in station 962 combos
+- Station top-20 already uses real ERA5 SM (sm_surface), not proxy
+
+### Remote Training (mlpc)
+- SSH: `ssh mlpc` (192.168.1.118, key auth in ~/.ssh/config)
+- Code: git push/pull
+- Data: `rsync -avz ./data/ mlpc:~/dcsdxx/data/`
+- Python: `/home/hert/miniforge3/envs/sdxx/bin/python`
+- GPU training: CatBoost `task_type='GPU', devices='0'`
+- Long tasks: `ssh mlpc "nohup python script.py > log 2>&1 &"`
+- Monitor: `http://192.168.1.118:8765/mlpc_monitor.html`
+
 ### Data Source Lessons Learned
 - MODIS NDVI coverage determines ranking: 8-day (100%) >> 16-day (50%)
 - SWIR2(b07, 2.13μm) is single strongest raw band for Kcact — better than any VI alone
@@ -310,14 +333,15 @@ Three rounds of submission, two failures:
 
 ## 14. Path Forward
 
-1. ~~GEE exports~~ → 54 CSVs downloaded, MODIS fPAR/LST/NDVI/SWIR2 merged
-2. ~~500+ combo tests~~ → 859 combos complete, exhaustive sweep done
-3. ~~Station vs large-sample comparison~~ → findings documented in §12
-4. **Add SIF (TROPOMI)** if available — most direct photosynthesis measurement
-5. **Sentinel-1 SAR** — GEE exports failed (OOM), consider alternative approach
-6. **Direct ETc prediction with full features** — promising direction (0.762 vs 0.758 for Kc)
-7. **SHAP for all top combos** — partial done, extend to weather-included combos
-8. **Paper writeup** — core results ready for manuscript
+1. ~~FAO-56 ET0 audit~~ → fully compliant, code annotated with equation numbers
+2. ~~GEE exports~~ → 110 CSVs in `data/raw/gee/kcact_maize_modis_indicators/`, including MOD09A1 7-band full set
+3. ~~500+ combo tests~~ → 859 combos (exhaustive) + 255 combos (RDVI) complete
+4. ~~VI permutation~~ → NDVI+EVI+GNDVI+SAVI+RDVI all tested, ceiling at 0.66
+5. ~~Growth stage split~~ → 5-stage analysis complete, DOY dominance documented
+6. **Merge ERA5-Land SM into large-sample parquet** (29M rows, year-by-year to avoid OOM)
+7. **GLDAS SM** — 13 GEE export tasks pending, download when ready
+8. **Direct ETc prediction** with final feature set
+9. **Paper writeup** — core results ready
 
 ## 11. Known Issues / Gotchas
 
