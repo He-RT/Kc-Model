@@ -1,0 +1,39 @@
+{
+  "" : {
+    "diagnostics" : "/Users/hert/Projects/dcsdxx/apps/KcactVision/DerivedData/Build/Intermediates.noindex/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/KcactVision-primary.dia",
+    "emit-module-dependencies" : "/Users/hert/Projects/dcsdxx/apps/KcactVision/DerivedData/Build/Intermediates.noindex/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/KcactVision-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/hert/Projects/dcsdxx/apps/KcactVision/DerivedData/Build/Intermediates.noindex/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/KcactVision-primary-emit-module.dia",
+    "pch" : "/Users/hert/Projects/dcsdxx/apps/KcactVision/DerivedData/Build/Intermediates.noindex/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/KcactVision-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/hert/Projects/dcsdxx/apps/KcactVision/DerivedData/Build/Intermediates.noindex/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/KcactVision-primary.swiftdeps"
+  },
+  "/Users/hert/Projects/dcsdxx/apps/KcactVision/DerivedData/Build/Intermediates.noindex/KcactVision.build/Debug-iphonesimulator/KcactVision.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "const-values" : "/Users/hert/Projects/dcsdxx/apps/KcactVision/DerivedData/Build/Intermediates.noindex/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/GeneratedAssetSymbols.swiftconstvalues",
+    "dependencies" : "/Users/hert/Projects/dcsdxx/apps/KcactVision/DerivedData/Build/Intermediates.noindex/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/GeneratedAssetSymbols.d",
+    "diagnostics" : "/Users/hert/Projects/dcsdxx/apps/KcactVision/DerivedData/Build/Intermediates.noindex/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/GeneratedAssetSymbols.dia",
+    "index-unit-output-path" : "/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "llvm-bc" : "/Users/hert/Projects/dcsdxx/apps/KcactVision/DerivedData/Build/Intermediates.noindex/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/GeneratedAssetSymbols.bc",
+    "object" : "/Users/hert/Projects/dcsdxx/apps/KcactVision/DerivedData/Build/Intermediates.noindex/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "swift-dependencies" : "/Users/hert/Projects/dcsdxx/apps/KcactVision/DerivedData/Build/Intermediates.noindex/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/GeneratedAssetSymbols.swiftdeps",
+    "swiftmodule" : "/Users/hert/Projects/dcsdxx/apps/KcactVision/DerivedData/Build/Intermediates.noindex/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/GeneratedAssetSymbols~partial.swiftmodule"
+  },
+  "/Users/hert/Projects/dcsdxx/apps/KcactVision/KcactVision/ContentView.swift" : {
+    "const-values" : "/Users/hert/Projects/dcsdxx/apps/KcactVision/DerivedData/Build/Intermediates.noindex/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/ContentView.swiftconstvalues",
+    "dependencies" : "/Users/hert/Projects/dcsdxx/apps/KcactVision/DerivedData/Build/Intermediates.noindex/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/ContentView.d",
+    "diagnostics" : "/Users/hert/Projects/dcsdxx/apps/KcactVision/DerivedData/Build/Intermediates.noindex/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/ContentView.dia",
+    "index-unit-output-path" : "/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/ContentView.o",
+    "llvm-bc" : "/Users/hert/Projects/dcsdxx/apps/KcactVision/DerivedData/Build/Intermediates.noindex/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/ContentView.bc",
+    "object" : "/Users/hert/Projects/dcsdxx/apps/KcactVision/DerivedData/Build/Intermediates.noindex/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/ContentView.o",
+    "swift-dependencies" : "/Users/hert/Projects/dcsdxx/apps/KcactVision/DerivedData/Build/Intermediates.noindex/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/ContentView.swiftdeps",
+    "swiftmodule" : "/Users/hert/Projects/dcsdxx/apps/KcactVision/DerivedData/Build/Intermediates.noindex/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/ContentView~partial.swiftmodule"
+  },
+  "/Users/hert/Projects/dcsdxx/apps/KcactVision/KcactVision/KcactVisionApp.swift" : {
+    "const-values" : "/Users/hert/Projects/dcsdxx/apps/KcactVision/DerivedData/Build/Intermediates.noindex/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/KcactVisionApp.swiftconstvalues",
+    "dependencies" : "/Users/hert/Projects/dcsdxx/apps/KcactVision/DerivedData/Build/Intermediates.noindex/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/KcactVisionApp.d",
+    "diagnostics" : "/Users/hert/Projects/dcsdxx/apps/KcactVision/DerivedData/Build/Intermediates.noindex/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/KcactVisionApp.dia",
+    "index-unit-output-path" : "/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/KcactVisionApp.o",
+    "llvm-bc" : "/Users/hert/Projects/dcsdxx/apps/KcactVision/DerivedData/Build/Intermediates.noindex/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/KcactVisionApp.bc",
+    "object" : "/Users/hert/Projects/dcsdxx/apps/KcactVision/DerivedData/Build/Intermediates.noindex/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/KcactVisionApp.o",
+    "swift-dependencies" : "/Users/hert/Projects/dcsdxx/apps/KcactVision/DerivedData/Build/Intermediates.noindex/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/KcactVisionApp.swiftdeps",
+    "swiftmodule" : "/Users/hert/Projects/dcsdxx/apps/KcactVision/DerivedData/Build/Intermediates.noindex/KcactVision.build/Debug-iphonesimulator/KcactVision.build/Objects-normal/arm64/KcactVisionApp~partial.swiftmodule"
+  }
+}

@@ -1,0 +1,111 @@
+.model-head {
+  position: relative;
+  min-height: 240rpx;
+}
+
+.model-head .body {
+  margin-top: 14rpx;
+  max-width: 460rpx;
+}
+
+.score-block {
+  position: absolute;
+  right: 30rpx;
+  bottom: 30rpx;
+  text-align: right;
+}
+
+.score {
+  margin-top: 4rpx;
+  font-size: 58rpx;
+  line-height: 1;
+  font-weight: 850;
+  color: #1f7a4d;
+}
+
+.chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18rpx;
+  margin-top: 24rpx;
+}
+
+.model-chip {
+  min-width: 154rpx;
+  padding: 18rpx 24rpx;
+  border: 3rpx solid #202420;
+  box-sizing: border-box;
+  text-align: center;
+  color: #171b18;
+  background: #fff;
+  font-size: 32rpx;
+  line-height: 1;
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 700;
+}
+
+.feature-list {
+  margin-top: 26rpx;
+}
+
+.feature-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin-top: 22rpx;
+}
+
+.feature-name {
+  width: 92rpx;
+  font-size: 24rpx;
+  font-weight: 800;
+}
+
+.feature-track {
+  flex: 1;
+  height: 20rpx;
+  overflow: hidden;
+  border-radius: 8rpx;
+  background: rgba(24, 39, 30, 0.08);
+}
+
+.feature-fill {
+  height: 100%;
+  border-radius: 8rpx;
+}
+
+.greenbar {
+  background: #1f7a4d;
+}
+
+.soilbar {
+  background: #8b5e34;
+}
+
+.bluebar {
+  background: #0e7490;
+}
+
+.midbar {
+  background: #d99a21;
+}
+
+.warnbar {
+  background: #c2410c;
+}
+
+.ink {
+  background: #25323a;
+}
+
+.feature-score {
+  width: 48rpx;
+  color: #6f7570;
+  text-align: right;
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.note {
+  margin-top: 14rpx;
+}

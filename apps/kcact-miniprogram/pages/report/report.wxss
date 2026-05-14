@@ -1,0 +1,50 @@
+.report-card {
+  background: #fffdf7;
+}
+
+.report-head {
+  align-items: flex-start;
+}
+
+.report-icon {
+  width: 74rpx;
+  height: 74rpx;
+  border-radius: 18rpx;
+  color: #fff;
+  background: #1f7a4d;
+  text-align: center;
+  font-size: 36rpx;
+  line-height: 74rpx;
+  font-weight: 850;
+}
+
+.divider {
+  height: 1rpx;
+  margin: 28rpx 0;
+  background: rgba(24, 39, 30, 0.12);
+}
+
+.report-row {
+  display: flex;
+  align-items: flex-start;
+  margin-top: 22rpx;
+}
+
+.report-label {
+  width: 150rpx;
+  color: #757b76;
+  font-size: 26rpx;
+}
+
+.report-value {
+  flex: 1;
+  color: #101815;
+  font-size: 26rpx;
+  line-height: 1.45;
+  font-weight: 750;
+}
+
+.conclusion {
+  margin-top: 14rpx;
+  color: #202722;
+}

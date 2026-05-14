@@ -1,0 +1,58 @@
+<view class="screen">
+  <view class="section hero">
+    <view class="row between hero-head">
+      <view>
+        <view class="title-xl">华北平原作物耗水监测</view>
+        <view class="hero-sub muted">遥感 + 气象 + 作物系数模型</view>
+      </view>
+      <view class="eyebrow">中期原型</view>
+    </view>
+
+    <view class="map-panel">
+      <view class="heat-grid">
+        <view wx:for="{{heatCells}}" wx:key="index" class="heat-cell {{item}}"></view>
+      </view>
+
+      <view wx:for="{{spots}}" wx:key="name" class="spot {{item.size}}" style="left: {{item.x}}%; top: {{item.y}}%;">
+        <view class="spot-label">{{item.name}}</view>
+      </view>
+
+      <view class="legend row">
+        <view class="legend-item row"><view class="dot low-dot"></view><text>低</text></view>
+        <view class="legend-item row"><view class="dot mid-dot"></view><text>中</text></view>
+        <view class="legend-item row"><view class="dot high-dot"></view><text>高</text></view>
+        <view class="legend-title">Kcact / ETc 风险</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="metric-grid">
+    <view wx:for="{{metrics}}" wx:key="label" class="metric-card">
+      <view class="mark">{{item.mark}}</view>
+      <view class="value">{{item.value}}</view>
+      <view class="metric-label">{{item.label}}</view>
+      <view class="metric-unit">{{item.unit}}</view>
+    </view>
+  </view>
+
+  <view class="risk section">
+    <view class="title-md warn">抽雄-灌浆窗口水分风险偏高</view>
+    <view class="body muted">山东西部与河南北部 8 日 ETc 较常年高 11.8%，建议作为重点核查区域。</view>
+  </view>
+
+  <view class="section">
+    <view class="row between">
+      <view class="title-md">生育期进度</view>
+      <view class="caption muted">DOY 226</view>
+    </view>
+
+    <view class="stage-list">
+      <view wx:for="{{stages}}" wx:key="name" class="stage">
+        <view class="stage-track">
+          <view class="stage-fill {{item.active ? 'active' : ''}}" style="width: {{item.progress}}%;"></view>
+        </view>
+        <view class="stage-name {{item.active ? 'green' : 'muted'}}">{{item.name}}</view>
+      </view>
+    </view>
+  </view>
+</view>

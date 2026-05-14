@@ -1,0 +1,28 @@
+<view class="screen report-screen">
+  <view class="section report-card">
+    <view class="row between report-head">
+      <view>
+        <view class="title-lg">地块诊断报告</view>
+        <view class="caption muted">2026-05-13 · 样例导出页</view>
+      </view>
+      <view class="report-icon">R</view>
+    </view>
+
+    <view class="divider"></view>
+
+    <view wx:for="{{rows}}" wx:key="label" class="report-row">
+      <view class="report-label">{{item.label}}</view>
+      <view class="report-value">{{item.value}}</view>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="title-md">自动生成结论</view>
+    <view class="body conclusion">该地块近期冠层指数处于较高区间，土壤水分指标低于生育期均值。结合 doy 所示抽雄至灌浆窗口，建议将该地块作为水分风险重点核查对象。</view>
+  </view>
+
+  <view class="section">
+    <view class="title-md">说明书配图用途</view>
+    <view class="body muted">这页适合放在中期说明书的“产品输出形式”小节，表达系统最终可以从模型结果生成面向管理者的地块报告。</view>
+  </view>
+</view>

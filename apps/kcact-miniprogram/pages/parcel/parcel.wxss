@@ -1,0 +1,104 @@
+.parcel-head {
+  align-items: flex-start;
+  gap: 22rpx;
+}
+
+.danger-pill {
+  color: #c2410c;
+  background: #fff4e6;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 26rpx;
+}
+
+.chip {
+  padding: 12rpx 18rpx;
+  border-radius: 999rpx;
+  color: #69706b;
+  background: rgba(24, 39, 30, 0.06);
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.gauge-row {
+  display: flex;
+  gap: 16rpx;
+  margin-bottom: 28rpx;
+}
+
+.gauge {
+  flex: 1;
+  padding: 26rpx 14rpx;
+  border: 1rpx solid rgba(24, 39, 30, 0.08);
+  border-radius: 16rpx;
+  text-align: center;
+  background: #fff;
+}
+
+.gauge-value {
+  margin: 14rpx 0 8rpx;
+  font-size: 38rpx;
+  line-height: 1;
+  font-weight: 850;
+}
+
+.chart {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  height: 260rpx;
+  margin-top: 28rpx;
+  padding: 18rpx 0 0;
+  border-bottom: 1rpx solid rgba(24, 39, 30, 0.12);
+}
+
+.bar-group {
+  display: flex;
+  align-items: flex-end;
+  gap: 6rpx;
+  width: 52rpx;
+  height: 100%;
+}
+
+.bar {
+  width: 20rpx;
+  min-height: 18rpx;
+  border-radius: 8rpx 8rpx 0 0;
+}
+
+.bar.kc {
+  background: #1f7a4d;
+}
+
+.bar.et {
+  background: #0e7490;
+}
+
+.chart-days {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 14rpx;
+  color: #8b8f93;
+  font-size: 22rpx;
+}
+
+.indicator-list {
+  margin-top: 22rpx;
+}
+
+.indicator {
+  margin-top: 24rpx;
+}
+
+.indicator-name {
+  font-size: 26rpx;
+  font-weight: 800;
+}
+
+.indicator .progress-track {
+  margin-top: 10rpx;
+}

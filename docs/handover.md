@@ -1,6 +1,6 @@
 # Kcact ET Modeling — Handover Document
 
-**Last updated**: 2026-05-10 | **Sessions**: zhandian, remote | **Ready for compact**
+**Last updated**: 2026-05-13 | **Sessions**: zhandian, remote, mod16-compare, fc-wp-meta | **Ready for compact**
 
 ## 1. Project Overview
 
@@ -342,6 +342,139 @@ Three rounds of submission, two failures:
 7. **GLDAS SM** — 13 GEE export tasks pending, download when ready
 8. **Direct ETc prediction** with final feature set
 9. **Paper writeup** — core results ready
+10. **Spatial scale unification** — investigate station meteorological observations or DEM downscaling for station-consistent ET0
+11. **MOD16-tower calibration** — build per-station MOD16 bias correction using Guantao (r=0.63, bias minimal) as anchor
+12. **Sentinel-2 for station era** — temporal mismatch (S2 2017+ vs stations 2003-2015); Landsat 5/7/8 (30m, 1984+) is the viable high-res alternative for station period
+
+## 15. MOD16 vs Tower Kcact Comparison (NEW 2026-05-13)
+
+### 15.1 Motivation
+
+大样本 Kcact 的 ETa 来自 MOD16A2GF (500m, 8天)，站点 Kcact 的 ETa 来自通量塔实测。两者使用相同的 ERA5 ET0 分母。在通量塔坐标上同时提取 MOD16 ET，直接对比可量化 MOD16 产品的点位偏差。
+
+### 15.2 Method
+
+- 提取 `MODIS/061/MOD16A2GF` 在 4 站坐标的 8 天总 ET (mm)，除以 8 转日均
+- 匹配站点观测窗口（重叠 MOD16 8 天时段），取重合 MOD16 窗口的均值
+- 同一 ET0 分母下计算 Kc_mod16 和 Kc_tower，对比
+- 脚本：`scripts/python/compare_kc_mod16_vs_tower.py`
+- 输出：`outputs/tables/kc_mod16_vs_tower.csv`
+
+### 15.3 Results
+
+| 指标 | 值 |
+|------|-----|
+| r(Kc_tower, Kc_mod16) | **0.14** |
+| r(ETc_tower, ETc_mod16) | **0.47** |
+| RMSE(Kc) | 0.39 |
+| Kc_tower 均值 | 0.55 |
+| Kc_mod16 均值 | 0.40 (**−29%** 系统性低估) |
+
+**Per-station r(ETc)**:
+
+| 站 | r(ETc) | tower 均值 | MOD16 均值 | Kc 偏差 |
+|----|--------|----------|-----------|--------|
+| 馆陶 | **0.63** | 1.39 mm/d | 1.15 mm/d | +0.02 |
+| 禹城 | 0.51 | 1.86 mm/d | 1.15 mm/d | −0.14 |
+| 位山 | 0.41 | 2.13 mm/d | 0.93 mm/d | −0.29 |
+| 栾城 | N/A | — | — | MOD16 无数据 |
+
+**Seasonal r(ETc)**:
+
+| 季节 | r(ETc) |
+|------|--------|
+| 夏季 (6-9月) | **0.24** — 生长期最差 |
+| 春季 (3-5月) | 0.48 |
+| 冬季 (11-2月) | 0.06 |
+
+### 15.4 Implications
+
+1. **MOD16 500m ET 在点位尺度上不可靠。** r=0.47 的原始 ETc 相关性说明 500m 像素平均化和通量足迹的信号差异是根本性的。
+2. **大样本 R²=0.77 学到的是 MOD16 PM 算法的内部规律，不是真正的田间作物蒸散。** 模型预测的是 MOD16 会输出什么，而非作物实际蒸腾了多少。
+3. **站点 R²=0.47 被低估了。** 通量塔实测 Kc 是更真实的作物信号——它更难预测因为噪声更少，不是模型更差。
+4. **栾城 MOD16 500 景全 NaN** — MOD16A2GF 在太行山前平原（37.88°N, 114.69°E）无有效数据，原因待查（可能被土地覆盖掩膜排除）。
+5. **馆陶偏差异常小（+0.02）**，位山异常大（−0.29）。站间差异说明 MOD16 的偏差不是全局常数，与局地土地覆盖异质性有关。
+
+## 16. Spatial Scale Mismatch Analysis (NEW 2026-05-13)
+
+### 16.1 The Problem
+
+站点 Kcact = ETa / ET0，但分子分母不在同一空间尺度：
+
+| 变量 | 来源 | 原生分辨率 | 面积 | vs 通量足迹 (0.1km²) |
+|------|------|-----------|------|---------------------|
+| ETa | 涡度相关/蒸渗仪 | ~100-500m 足迹 | ~0.1 km² | 基准 |
+| ET0 | ERA5 → FAO-56 PM | 0.1° (~11km) | ~100 km² | **100-3000x** |
+| NDVI/EVI | MOD13Q1 | 250m | 0.06 km² | 0.6-25x |
+| SM_surface | ERA5-Land | 0.1° (~11km) | ~100 km² | 100-3000x |
+| fPAR | MOD15A2H | 500m | 0.25 km² | 1-25x |
+| LST | MOD11A2 | 1km | 1 km² | 3-100x |
+
+### 16.2 Impact by Pipeline
+
+- **大样本**：ETa (MOD16 500m) + ET0 (ERA5 11km) — 都是网格产品，尺度更一致。模型学到网格到网格映射。但目标本身（MOD16 Kc）已偏离真实作物蒸散。
+- **站点**：ETa (通量塔点) + ET0 (ERA5 11km) — 尺度错配最大。Kc 目标更真实但输入特征无法匹配通量塔的微气象。
+
+### 16.3 Possible Fixes
+
+1. **站级气象数据**（最优）：用通量塔同步气象观测算 ET0，与 ETa 同尺度的分子分母
+2. **CMFD**（中国区域强迫数据）：仍 0.1° 但基于 740 站实测插值，比 ERA5 准
+3. **DEM 降尺度**：气温递减率校正 ERA5 气温到 30m 网格，物理合理、可批量
+
+## 17. Soil Hydraulic Parameters (NEW 2026-05-13)
+
+### 17.1 Dai et al. 2013 Dataset
+
+- TPDC: `https://data.tpdc.ac.cn/zh-hans/data/205da4ae-63cd-48e1-994e-0b5d8830812a`
+- 30 arc-second (~1km), 7 layers depth=[4.5, 9.1, 16.6, 28.9, 49.3, 82.9, 138.3] cm
+- TH33=FC (33kPa), TH1500=WP (1500kPa), units cm³/cm³
+- 多 PTF 集成，作者自述 "accuracy is unknown for lack of in-situ and regional measurements"
+- **Luancheng verification**: 数据集的 FC/WP 系统性低于实测 ~50%，非读取错误，是 PTF 的区域偏差
+- 10 个参数 NC 文件嵌套 zip 中（ALPHA, N, LAMBDA 等），仅解压了 TH33 和 TH1500
+
+### 17.2 Guantao FC/WP from Soil Texture Image
+
+- 方法：Saxton-Rawls 2006 PTF（修正版）
+- 修正：论文系数 `0.0452` → `0.452`，加缺失的第二步调整
+- 3 层：0-25cm (clay 41.7%), 26-45cm (clay 56.6%), 45-100cm (clay 30.1%)
+- 0-100cm 加权：FC=38.0% (380mm), WP=23.1% (231mm), PAW=14.9% (149mm)
+- 假设：OM=1.5%（无实测值）
+
+### 17.3 Meta-Analysis
+
+`outputs/tables/meta_fc_wp.csv` — 17 条记录，覆盖 4 通量站 + 泰安、封丘参考站。含方法、来源、可靠度标记。
+
+## 18. Soil Moisture Data Inventory (NEW 2026-05-13)
+
+| 数据集 | 时空 | 层次 | 站点 | 文件 |
+|--------|------|------|------|------|
+| FLDAS (Noah01) | 月, 0.1° | 0-10,10-40,40-100,100-200cm | 4 站已提取 | `data/processed/fldas_station_sm.csv` |
+| ERA5-Land SM | 月/日, 0.1° | 0-7,7-28,28-100,100-289cm | 4 站已提取，SM_root_mm 已写入 Excel | `data/processed/era5_station_sm.csv` |
+| GLDAS SM | 月, 0.25° | 4 层 | 13 GEE export 待下载 | `kcact_maize_modis_indicators/` |
+
+**SM_root 计算** (0-100cm): `SM_root_mm = θL1×70 + θL2×210 + θL3×720` (ERA5 层次厚度加权)，基于标准土壤物理学 (Hillel) 和 FAO-56 框架。
+
+**SM vs Kc 关系**：ERA5 SM 与 Kcact 总体相关弱 (r=0.17)，但季节性窗口强——DOY 91-150 r=+0.43 (小麦), DOY 241-300 r=+0.57 (玉米灌浆)。
+
+## 19. Summer Maize Phenology & Varieties (NEW 2026-05-13)
+
+### 19.1 Phenological Dates
+
+| 站 | 播种 | 抽雄 | 收获 | 全生育期 |
+|----|------|------|------|---------|
+| 栾城 (37.88°N) | 6/15-6/20 | 7/28-8/05 | 9/25-10/05 | ~105d |
+| 禹城 (36.83°N) | 6/12-6/18 | 7/25-8/02 | 9/22-10/01 | ~103d |
+| 位山 (36.65°N) | 6/12-6/18 | 7/25-8/02 | 9/22-10/01 | ~103d |
+| 馆陶 (36.52°N) | 6/10-6/15 | 7/22-7/30 | 9/20-9/28 | ~100d |
+
+南北纬度差 1.5° → 积温差 ~100°C·d → 日期差 5-7 天。
+
+### 19.2 Varieties
+
+- **未找到站级品种记录。** CERN/ScienceDB 公开数据库含通量数据但无田间管理记录。
+- 品种年会报告在 CERN 内部受限制数据库中，非公开可获取。
+- 文献推断主导品种：**郑单 958** (2004+)，此前为农大 108 (pre-2004)
+- 站间品种差异附加影响约 2-5 天，小于纬度梯度的 5-7 天
 
 ## 11. Known Issues / Gotchas
 
@@ -351,3 +484,7 @@ Three rounds of submission, two failures:
 - **GEE .getInfo() limits**: ~10MB response, ~5 min timeout. For >1000 points, use Export.table.toDrive().
 - **Small station sample (304 maize obs)**: LOSO CV is very harsh (training on 3 stations, testing on 1 with different baseline). Results indicate feature ranking robustness, not absolute prediction quality.
 - **Station name encoding**: MODIS extracts use English names (yucheng, weishan, etc.), other data uses Chinese (禹城, 位山). Always map before merging.
+- **MOD16A2GF at Luancheng**: 500 MOD16 windows all NaN at Luancheng (37.88°N, 114.69°E) — MOD16 land cover mask likely excludes this pixel. Other 3 stations OK.
+- **MOD16 8-day total vs daily**: MOD16A2GF ET band is 8-day total (mm) with scale factor 0.1. Must divide by 8 to compare with daily mean ETc from tower.
+- **Spatial scale gap**: ERA5-Land weather+SM at 11km vs tower ETa at 100-500m footprint creates a 100-3000x area mismatch in station Kcact denominator. Large-sample pipeline avoids this by having both ETa (MOD16 500m) and ET0 (ERA5 11km) as gridded products, but MOD16 PM algorithm introduces its own ~29% low bias vs tower.
+- **Temporal coverage beats spatial resolution** for NDVI: MOD09GA daily 500m outperforms MOD09Q1 8-day 250m, and MOD13Q1 16-day is the worst despite having 250m resolution.

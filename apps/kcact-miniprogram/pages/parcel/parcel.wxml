@@ -1,0 +1,59 @@
+<view class="screen">
+  <view class="section">
+    <view class="row between parcel-head">
+      <view>
+        <view class="title-lg">NCP-MZ-2024-0831</view>
+        <view class="body muted">夏玉米 · 山东德州 · 抽雄期</view>
+      </view>
+      <view class="eyebrow danger-pill">重点关注</view>
+    </view>
+
+    <view class="chip-row">
+      <view class="chip">36.83°N, 116.57°E</view>
+      <view class="chip">500m 网格</view>
+    </view>
+  </view>
+
+  <view class="gauge-row">
+    <view wx:for="{{gauges}}" wx:key="label" class="gauge">
+      <view class="caption muted">{{item.label}}</view>
+      <view class="gauge-value">{{item.value}}</view>
+      <view class="caption {{item.tone}}">{{item.unit}}</view>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="row between">
+      <view class="title-md">近 64 天耗水趋势</view>
+      <view class="caption muted">Kcact / ET0</view>
+    </view>
+
+    <view class="chart">
+      <view wx:for="{{bars}}" wx:key="day" class="bar-group">
+        <view class="bar kc" style="height: {{item.kc}}%;"></view>
+        <view class="bar et" style="height: {{item.et}}%;"></view>
+      </view>
+    </view>
+
+    <view class="chart-days">
+      <text>6/10</text>
+      <text>7/12</text>
+      <text>8/05</text>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="title-md">选用指标</view>
+    <view class="indicator-list">
+      <view wx:for="{{indicators}}" wx:key="name" class="indicator">
+        <view class="row between">
+          <view class="indicator-name">{{item.name}}</view>
+          <view class="caption muted">{{item.note}}</view>
+        </view>
+        <view class="progress-track">
+          <view class="progress-fill" style="width: {{item.value}}%;"></view>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

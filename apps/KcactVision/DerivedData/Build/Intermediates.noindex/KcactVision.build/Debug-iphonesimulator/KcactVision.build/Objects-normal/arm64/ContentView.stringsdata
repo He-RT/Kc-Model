@@ -1,0 +1,296 @@
+{
+  "source": "/Users/hert/Projects/dcsdxx/apps/KcactVision/KcactVision/ContentView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "总览",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 7
+        }
+      },
+      {
+        "comment": "",
+        "key": "地块",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 10
+        }
+      },
+      {
+        "comment": "",
+        "key": "模型",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 13
+        }
+      },
+      {
+        "comment": "",
+        "key": "报告",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 16
+        }
+      },
+      {
+        "comment": "",
+        "key": "Kcact Vision",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 43
+        }
+      },
+      {
+        "comment": "",
+        "key": "华北平原作物耗水监测",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 61
+        }
+      },
+      {
+        "comment": "",
+        "key": "遥感 + 气象 + 作物系数模型",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 63
+        }
+      },
+      {
+        "comment": "",
+        "key": "Kcact / ETc 风险",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 112
+        }
+      },
+      {
+        "comment": "",
+        "key": "抽雄-灌浆窗口水分风险偏高",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 163
+        }
+      },
+      {
+        "comment": "",
+        "key": "山东西部与河南北部 8 日 ETc 较常年高 11.8%，建议作为重点核查区域。",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 165
+        }
+      },
+      {
+        "comment": "",
+        "key": "本页为中期展示静态样例，数值采用项目现有结果和合理示例组合，用于说明产品形态。",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 197
+        }
+      },
+      {
+        "comment": "",
+        "key": "DOY 226",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 184
+        }
+      },
+      {
+        "comment": "",
+        "key": "生育期进度",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 181
+        }
+      },
+      {
+        "comment": "",
+        "key": "地块详情",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 225
+        }
+      },
+      {
+        "comment": "",
+        "key": "NCP-MZ-2024-0831",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 236
+        }
+      },
+      {
+        "comment": "",
+        "key": "夏玉米 · 山东德州 · 抽雄期",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 238
+        }
+      },
+      {
+        "comment": "",
+        "key": "近 72 天耗水趋势",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 262
+        }
+      },
+      {
+        "comment": "",
+        "key": "6/10",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 277
+        }
+      },
+      {
+        "comment": "",
+        "key": "7/18",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 279
+        }
+      },
+      {
+        "comment": "",
+        "key": "8/20",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 281
+        }
+      },
+      {
+        "comment": "",
+        "key": "关键遥感与土壤指标",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 303
+        }
+      },
+      {
+        "comment": "",
+        "key": "模型",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 387
+        }
+      },
+      {
+        "comment": "",
+        "key": "模型解释",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 342
+        }
+      },
+      {
+        "comment": "",
+        "key": "CatBoost VI+SM+doy 7 指标版，突出植被指数、土壤水分与物候阶段。",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 344
+        }
+      },
+      {
+        "comment": "",
+        "key": "特征贡献排序",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 353
+        }
+      },
+      {
+        "comment": "",
+        "key": "R² 0.661",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 356
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 372
+        }
+      },
+      {
+        "comment": "",
+        "key": "当前原型强调地块级 Kcact 与 ETc 的可视化诊断。站点尺度与 MOD16 产品存在差异，后续将通过站点气象数据、MOD16 偏差校正和根区土壤水分约束继续完善。",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 399
+        }
+      },
+      {
+        "comment": "",
+        "key": "中期说明建议",
+        "location": {
+          "startingColumn": 19,
+          "startingLine": 396
+        }
+      },
+      {
+        "comment": "",
+        "key": "报告",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 461
+        }
+      },
+      {
+        "comment": "",
+        "key": "地块诊断报告",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 416
+        }
+      },
+      {
+        "comment": "",
+        "key": "2026-05-13 · 样例导出页",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 418
+        }
+      },
+      {
+        "comment": "",
+        "key": "自动生成结论",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 439
+        }
+      },
+      {
+        "comment": "",
+        "key": "该地块近期冠层活跃度较高，地表昼夜温差扩大，根区土壤水分处于偏低区间。建议在实地墒情核查基础上，将抽雄至灌浆阶段作为灌溉调度重点。",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 441
+        }
+      },
+      {
+        "comment": "",
+        "key": "说明书配图用途",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 449
+        }
+      },
+      {
+        "comment": "",
+        "key": "这页适合放在中期说明书的“产品输出形式”小节，表达系统最终可以从模型结果生成面向管理者的地块报告。",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 451
+        }
+      }
+    ]
+  },
+  "version": 1
+}

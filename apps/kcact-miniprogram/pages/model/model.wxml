@@ -1,0 +1,39 @@
+<view class="screen">
+  <view class="section model-head">
+    <view class="title-lg">VI + SM + doy 指标组合</view>
+    <view class="body muted">中期展示版采用 7 个指标：植被状态、土壤水分和物候阶段。</view>
+    <view class="score-block">
+      <view class="caption muted">LOYO R²</view>
+      <view class="score">0.661</view>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="title-md">选用指标</view>
+    <view class="chip-grid">
+      <view wx:for="{{chips}}" wx:key="*this" class="model-chip">{{item}}</view>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="row between">
+      <view class="title-md">特征贡献排序</view>
+      <view class="caption muted">静态示意</view>
+    </view>
+
+    <view class="feature-list">
+      <view wx:for="{{features}}" wx:key="name" class="feature-row">
+        <view class="feature-name">{{item.name}}</view>
+        <view class="feature-track">
+          <view class="feature-fill {{item.tone}}" style="width: {{item.score}}%;"></view>
+        </view>
+        <view class="feature-score">{{item.score}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="title-md">建模说明</view>
+    <view class="body muted note">这组指标便于在中期说明书中解释：NDVI/EVI/GNDVI/RDVI/SAVI 负责冠层状态，SM 表示土壤水分，doy 编码生育期。后续可再接入真实地块数据和逐年交叉验证结果。</view>
+  </view>
+</view>
