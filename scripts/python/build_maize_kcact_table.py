@@ -89,6 +89,8 @@ def main():
     frames = [pd.read_parquet(tf) for tf in temp_files]
     merged = pd.concat(frames, ignore_index=True)
     n_before = len(merged)
+    # patch_id is now crop+province+season_year+coordinate, so it is globally
+    # stable across provinces/years and safe for de-duplication.
     merged = merged.drop_duplicates(subset=["patch_id", "date"], keep="first")
     print(f"  Dedupe: {n_before:,} -> {len(merged):,}")
 

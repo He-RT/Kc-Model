@@ -8,6 +8,10 @@ import pandas as pd
 from kcact.features.et0 import compute_et0_fao56
 
 
+COORD_DECIMALS = 6
+SPATIAL_ALIGNMENT_TOLERANCE_KM = 0.01  # 10 m; expected is exact exported point coords.
+
+
 def _normalize_patch_id(df: pd.DataFrame) -> pd.DataFrame:
     result = df.copy()
     if "patch_id" not in result.columns:
@@ -20,9 +24,129 @@ def _normalize_patch_id(df: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
+def _slug(value: str) -> str:
+    return (
+        str(value)
+        .strip()
+        .lower()
+        .replace(" ", "_")
+        .replace("-", "_")
+    )
+
+
+def _add_coord_key(df: pd.DataFrame) -> pd.DataFrame:
+    """Add a stable coordinate key from exported point coordinates.
+
+    GEE ``feature.id()`` is not stable across export jobs/provinces/years, so
+    the raw ``point_id``/``pt_*`` value cannot safely be used to join MOD16,
+    ERA5 and S2 tables.  The exported ``centroid_lat``/``centroid_lon`` are the
+    point geometry carried through each reduceRegions call; rounding to 6
+    decimals is far below the native product resolution and removes tiny CSV
+    representation differences while preserving unique sample points.
+    """
+    result = df.copy()
+    missing = {"centroid_lat", "centroid_lon"} - set(result.columns)
+    if missing:
+        raise ValueError(f"Expected centroid coordinates in input table; missing {sorted(missing)}")
+    lat = pd.to_numeric(result["centroid_lat"], errors="raise").round(COORD_DECIMALS)
+    lon = pd.to_numeric(result["centroid_lon"], errors="raise").round(COORD_DECIMALS)
+    result["coord_key"] = (
+        lat.map(lambda value: f"{value:.{COORD_DECIMALS}f}")
+        + "_"
+        + lon.map(lambda value: f"{value:.{COORD_DECIMALS}f}")
+    )
+    return result
+
+
+def _add_stable_patch_id(
+    df: pd.DataFrame,
+    province: str,
+    crop_type: str,
+) -> pd.DataFrame:
+    """Create a globally stable patch id from crop/province/season/coordinate."""
+    result = _add_coord_key(df)
+    if "point_id" in result.columns and "gee_point_id" not in result.columns:
+        result["gee_point_id"] = result["point_id"].astype(str)
+
+    if "season_year" in result.columns:
+        season_year = pd.to_numeric(result["season_year"], errors="coerce")
+    elif "date_start" in result.columns:
+        season_year = pd.to_datetime(result["date_start"]).dt.year
+    elif "date" in result.columns:
+        season_year = pd.to_datetime(result["date"]).dt.year
+    else:
+        raise ValueError("Cannot infer season_year for stable patch_id")
+
+    if season_year.isna().any():
+        raise ValueError("Cannot build stable patch_id: season_year contains NA")
+
+    crop = _slug(crop_type).replace("_candidate", "")
+    prov = _slug(province)
+    result["season_year"] = season_year.astype(int)
+    result["patch_id"] = (
+        crop
+        + "_"
+        + prov
+        + "_"
+        + result["season_year"].astype(str)
+        + "_"
+        + result["coord_key"]
+    )
+    # Keep downstream compatibility for scripts that still refer to point_id,
+    # while preserving the original GEE id separately as gee_point_id.
+    result["point_id"] = result["patch_id"]
+    return result
+
+
+def _haversine_km(
+    lat1: pd.Series,
+    lon1: pd.Series,
+    lat2: pd.Series,
+    lon2: pd.Series,
+) -> np.ndarray:
+    radius_km = 6371.0088
+    lat1_rad = np.radians(pd.to_numeric(lat1, errors="raise").astype(float))
+    lon1_rad = np.radians(pd.to_numeric(lon1, errors="raise").astype(float))
+    lat2_rad = np.radians(pd.to_numeric(lat2, errors="raise").astype(float))
+    lon2_rad = np.radians(pd.to_numeric(lon2, errors="raise").astype(float))
+    dlat = lat2_rad - lat1_rad
+    dlon = lon2_rad - lon1_rad
+    a = (
+        np.sin(dlat / 2.0) ** 2
+        + np.cos(lat1_rad) * np.cos(lat2_rad) * np.sin(dlon / 2.0) ** 2
+    )
+    return 2.0 * radius_km * np.arcsin(np.sqrt(a))
+
+
+def _assert_spatial_alignment(df: pd.DataFrame, suffix: str) -> None:
+    lat_col = f"centroid_lat{suffix}"
+    lon_col = f"centroid_lon{suffix}"
+    if lat_col not in df.columns or lon_col not in df.columns:
+        return
+    mask = df[lat_col].notna() & df[lon_col].notna()
+    if not mask.any():
+        return
+    distances = _haversine_km(
+        df.loc[mask, "centroid_lat"],
+        df.loc[mask, "centroid_lon"],
+        df.loc[mask, lat_col],
+        df.loc[mask, lon_col],
+    )
+    if len(distances) and float(np.nanmax(distances)) > SPATIAL_ALIGNMENT_TOLERANCE_KM:
+        raise ValueError(
+            f"Spatial alignment check failed for {suffix or 'base'}: "
+            f"max distance={float(np.nanmax(distances)):.3f} km, "
+            f"tolerance={SPATIAL_ALIGNMENT_TOLERANCE_KM:.3f} km. "
+            "Do not build Kcact from mismatched ETa/ET0/S2 points."
+        )
+
+
 def prepare_era5_daily(era5_df: pd.DataFrame) -> pd.DataFrame:
-    df = _normalize_patch_id(era5_df)
+    df = _add_coord_key(era5_df)
+    if "point_id" in df.columns and "gee_point_id" not in df.columns:
+        df["gee_point_id"] = df["point_id"].astype(str)
     df["date"] = pd.to_datetime(df["date"])
+    df = df.drop_duplicates(subset=["coord_key", "date"], keep="first")
     return compute_et0_fao56(df)
 
 
@@ -37,20 +161,22 @@ def aggregate_daily_weather_to_mod16_windows(
     MOD16 windows are identical across patches, so we iterate over ~161
     unique windows rather than doing a cross-join per patch_id.
     """
-    weather = _normalize_patch_id(era5_daily_df)
+    weather = _add_coord_key(era5_daily_df)
     weather["date"] = pd.to_datetime(weather["date"])
     weather["gdd_daily"] = np.maximum(weather["tmean_c"] - gdd_base_c, 0.0)
 
-    windows = _normalize_patch_id(mod16_df)[
-        ["patch_id", "date_start", "date_end", "date"]
+    windows = _add_coord_key(mod16_df)[
+        ["patch_id", "coord_key", "date_start", "date_end", "date"]
     ].copy()
     windows["date_start"] = pd.to_datetime(windows["date_start"])
     windows["date_end"] = pd.to_datetime(windows["date_end"])
     windows["date"] = pd.to_datetime(windows["date"])
     windows = windows.drop_duplicates()
 
-    # Build patch_id → set of valid dates for fast lookup
-    patch_window_dates = windows.groupby("patch_id")["date"].apply(set).to_dict()
+    # Build coord_key → set of valid dates for fast lookup.  Matching by
+    # coord_key avoids false joins when GEE reused the same pt_* id for
+    # different coordinates in separate export jobs.
+    coord_window_dates = windows.groupby("coord_key")["date"].apply(set).to_dict()
 
     # Unique (date_start, date_end, date) across all patches (~161 windows)
     unique_win = windows[["date_start", "date_end", "date"]].drop_duplicates()
@@ -86,9 +212,9 @@ def aggregate_daily_weather_to_mod16_windows(
         if len(in_window) == 0:
             continue
 
-        # Only keep patches that have this MOD16 window
-        valid_patches = {pid for pid, dates in patch_window_dates.items() if w_date in dates}
-        in_window = in_window[in_window["patch_id"].isin(valid_patches)]
+        # Only keep coordinates that have this MOD16 window
+        valid_coords = {key for key, dates in coord_window_dates.items() if w_date in dates}
+        in_window = in_window[in_window["coord_key"].isin(valid_coords)]
 
         if len(in_window) == 0:
             continue
@@ -98,9 +224,9 @@ def aggregate_daily_weather_to_mod16_windows(
         in_window["date_end"] = w_end
         in_window["window_date"] = w_date
 
-        # Aggregate per patch
+        # Aggregate per coordinate
         agged = (
-            in_window.groupby(["patch_id", "date_start", "date_end", "window_date"], as_index=False)
+            in_window.groupby(["coord_key", "date_start", "date_end", "window_date"], as_index=False)
             .agg(**agg_spec)
         )
         aggregated_frames.append(agged)
@@ -111,17 +237,30 @@ def aggregate_daily_weather_to_mod16_windows(
 
     result = pd.concat(aggregated_frames, ignore_index=True)
     result = result.rename(columns={"window_date": "date"})
+    result = result.merge(
+        windows,
+        on=["coord_key", "date_start", "date_end", "date"],
+        how="inner",
+    )
     return result
 
 
-def prepare_mod16_etc(mod16_df: pd.DataFrame) -> pd.DataFrame:
-    df = _normalize_patch_id(mod16_df)
+def prepare_mod16_etc(
+    mod16_df: pd.DataFrame,
+    province: str = "Hebei",
+    crop_type: str = "winter_wheat_candidate",
+) -> pd.DataFrame:
+    df = _add_stable_patch_id(mod16_df, province=province, crop_type=crop_type)
     for column in ["date_start", "date_end", "date"]:
         df[column] = pd.to_datetime(df[column])
     if "etc_8d_mm" not in df.columns and "ET" in df.columns:
         df["etc_8d_mm"] = df["ET"] * 0.1
     keep_cols = [
         "patch_id",
+        "point_id",
+        "gee_point_id",
+        "coord_key",
+        "season_year",
         "date_start",
         "date_end",
         "date",
@@ -133,16 +272,27 @@ def prepare_mod16_etc(mod16_df: pd.DataFrame) -> pd.DataFrame:
         "elevation_m",
     ]
     existing = [col for col in keep_cols if col in df.columns]
-    return df[existing].copy()
+    result = df[existing].copy()
+    return result.drop_duplicates(
+        subset=["patch_id", "coord_key", "date_start", "date_end", "date"],
+        keep="first",
+    )
 
 
-def prepare_s2_features(s2_df: pd.DataFrame) -> pd.DataFrame:
-    df = _normalize_patch_id(s2_df)
+def prepare_s2_features(
+    s2_df: pd.DataFrame,
+    province: str = "Hebei",
+    crop_type: str = "winter_wheat_candidate",
+) -> pd.DataFrame:
+    df = _add_stable_patch_id(s2_df, province=province, crop_type=crop_type)
     for column in ["date_start", "date_end", "date"]:
         df[column] = pd.to_datetime(df[column])
     if "obs_count_s2" not in df.columns and "obs_count" in df.columns:
         df = df.rename(columns={"obs_count": "obs_count_s2"})
-    return df
+    return df.drop_duplicates(
+        subset=["patch_id", "coord_key", "date_start", "date_end", "date"],
+        keep="first",
+    )
 
 
 def add_temporal_features(df: pd.DataFrame, crop_type: str = "winter_wheat") -> pd.DataFrame:
@@ -326,23 +476,26 @@ def build_training_table(
     crop_type: str = "winter_wheat_candidate",
     province: str = "Hebei",
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    s2 = prepare_s2_features(s2_df)
+    s2 = prepare_s2_features(s2_df, province=province, crop_type=crop_type)
     era5_daily = prepare_era5_daily(era5_daily_df)
-    mod16 = prepare_mod16_etc(mod16_df)
+    mod16 = prepare_mod16_etc(mod16_df, province=province, crop_type=crop_type)
     weather_8d = aggregate_daily_weather_to_mod16_windows(era5_daily, mod16)
 
     merged = mod16.merge(
         weather_8d,
-        on=["patch_id", "date_start", "date_end", "date"],
+        on=["patch_id", "coord_key", "date_start", "date_end", "date"],
         how="inner",
         suffixes=("", "_weather"),
     )
+    _assert_spatial_alignment(merged, "_weather")
+
     merged = merged.merge(
         s2,
-        on=["patch_id", "date_start", "date_end", "date"],
+        on=["patch_id", "coord_key", "date_start", "date_end", "date"],
         how="left",
         suffixes=("", "_s2"),
     )
+    _assert_spatial_alignment(merged, "_s2")
 
     for static_col in ["area_ha", "centroid_lat", "centroid_lon", "elevation_m"]:
         if f"{static_col}_weather" in merged.columns:

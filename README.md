@@ -2,12 +2,12 @@
 
 基于遥感与气象数据的作物系数（Kcact = ETc / ET0）预测，覆盖冬小麦和夏玉米。
 
-**当前最优模型**：
+**当前最优模型**（注意：2026-05-14 已修复大样本 ETa/ET0 空间错配，以下模型分数为修复前结果，需用新 parquet 重训刷新）：
 
 | 作物 | 数据规模 | 样本数 | LOYO R² | 特征数 | 备注 |
 |------|---------|--------|---------|--------|------|
 | 冬小麦 | 河北 592 patches, 2019–2025 | 18,528 | 0.702 | 46 | |
-| 夏玉米 | 华北四省 7,153 patches, 2019–2025 | 397,628 | **0.758** (9 feat) / **0.765** (51 feat) | 9 / 51 | 859组合全量实验 |
+| 夏玉米 | 华北四省，2019–2025 | 修复后 512,149 | **0.758** (9 feat) / **0.765** (51 feat) | 9 / 51 | 859组合全量实验；R²待重训 |
 | 夏玉米 | 同上，无天气版 | 同上 | **0.684** (8 feat) | 8 | 纯遥感+DOY |
 | 夏玉米 | 同上，ETc直接预测 | 同上 | **0.762** (9 feat) | 9 | 直接法≈间接法 |
 | 夏玉米 | 同上，VI+SM+DOY 全排列 | 同上 | **0.661** (5 feat) | 5 | 255组合，RDVI零贡献 |
@@ -25,6 +25,66 @@ MODIS 热红外/fPAR/反照率 ─────────────┤
 ERA5-Land 土壤水分 ───────────────────┘
                                        └─→ CatBoost LOYO CV
 ```
+
+### 2026-05-14 大样本 ETa/ET0 空间对齐修复
+
+已发现旧版大样本构建时使用 GEE 导出的 `pt_*` 作为 `patch_id`，而 `feature.id()` 在不同省份/年份/导出批次间不稳定，导致部分 MOD16 ETa、ERA5 ET0 和 S2 指标按同名 `pt_*` 串号合并。旧 parquet 中错配距离不是产品分辨率差异，而是主键错误：
+
+| 数据集 | 旧版错配行占比 | 旧版错配距离中位数 | 最大距离 |
+|---|---:|---:|---:|
+| 夏玉米 NCP | 30.04% | 191.55 km | 563.00 km |
+| 冬小麦 NCP | 39.70% | 93.16 km | 459.67 km |
+
+修复方案：
+
+1. 训练表构建阶段不再信任旧 `pt_*`，而用 `centroid_lat/centroid_lon` 生成 `coord_key`。
+2. 新 `patch_id = crop + province + season_year + coord_key`，原 GEE ID 保留为 `gee_point_id`。
+3. MOD16 ETa、ERA5 ET0、S2 特征统一按 `coord_key + date_start + date_end + date` 合并。
+4. 合并后强制做坐标距离断言，ETa/ET0/S2 点位超过 10 m 直接报错。
+
+修复后当前训练表：
+
+| 数据集 | 修复后行数 | 稳定 patch_id 数 | 时间窗口 | 坐标检查 |
+|---|---:|---:|---|---|
+| 夏玉米 NCP | 512,149 | 42,693 | 全部 8 天，`date=date_end` | 最大坐标差 < 1 mm |
+| 冬小麦 NCP | 289,690 | 15,899 | 全部 8 天，`date=date_end` | 最大坐标差 < 1 mm |
+
+因此后续模型和图表应基于修复后的 parquet 重新训练，旧版大样本 R² 只能作为历史参考。
+
+### 2026-05-14 7 指标 RDVI 与严格数值 QC 更新
+
+为避免把异常数值和近似指标写入中期说明书，夏玉米 7 指标训练入口
+`scripts/python/train_maize_selected_indicators.py` 已更新：
+
+1. **RDVI 不再作为正式结果由 NDVI/SAVI 反推**。新的 GEE S2 导出脚本直接从同窗口 Sentinel-2 Red/NIR 计算 `rdvi = (NIR-Red)/sqrt(NIR+Red)`，并额外导出 `s2_red/s2_nir` 便于复核。旧 parquet 没有 `rdvi` 时脚本会以 `--rdvi-source auto` 显式 fallback 并打印警告；最终报告应在重导出 S2 后用 `--rdvi-source direct`。
+2. **训练前新增严格数值 QC**，默认阈值：
+   - `0.02 <= Kcact <= 1.60`
+   - `0.10 <= ET0_daily <= 10.0 mm/d`
+   - `0.0 <= ETa_daily <= 10.0 mm/d`
+   - `-1.0 <= EVI <= 1.5`
+   - `0.02 <= SM <= 0.60`
+   - NDVI/GNDVI/LSWI 在 `[-1, 1]`，SAVI 在 `[-1, 1.5]`
+3. 在当前旧 RDVI parquet 上用 fallback 重跑后，完整样本从 469,339 变为 **466,381**，pooled LOYO R² 从约 0.710 变为 **0.7119**，说明严格 QC 没有破坏模型，但正式结果仍需直接 RDVI 重导出后刷新。
+
+### 2026-05-14 SMAP L4 尺度统一实验
+
+已下载并接入 `maize_smap_l4_aligned_2019.csv`–`2025.csv`，新增
+`scripts/python/train_maize_selected_indicators_smapgrid.py`。该脚本把七指标统一到 SMAP L4 实际采样尺度：
+
+- S2 指标和目标在同一 SMAP cell-window 内聚合；
+- 目标仍用 `mean(MOD16 ETa) / mean(ERA5 ET0)`；
+- 严格 QC 与 7 指标点尺度训练一致，包括 ET0/ETa daily、Kcact、NDVI/GNDVI/SAVI/RDVI/EVI、SM 阈值；
+- 已测试 `sm_surface`、`sm_rootzone`、`sm_profile`。
+
+结果：
+
+| SMAP SM 变量 | 聚合样本数 | pooled LOYO R² | RMSE | MAE |
+|---|---:|---:|---:|---:|
+| `sm_surface` | 173,889 | **0.7208** | 0.1818 | 0.1370 |
+| `sm_rootzone` | 173,855 | 0.6866 | 0.1926 | 0.1460 |
+| `sm_profile` | 173,850 | 0.6824 | 0.1939 | 0.1473 |
+
+当前 SMAP 尺度下 **surface SM 最优**，但仍低于此前 ERA5-like 0.1° 聚合实验的 R²≈0.746。后续如果主打产品实时性/数据一致性，可优先保留 SMAP surface 作为产品端可获取的 SM 候选；若主打精度，ERA5-like 0.1° 聚合仍是当前更强基线。
 
 ## 目录结构
 
@@ -231,7 +291,7 @@ MOD09A1 全套 7 波段 (b01-b07) 已下载 (56 新文件 + 原有 = 110 文件)
 | fPAR | MOD15A2H | 500m | 0.25 km² | 1-25x |
 | LST | MOD11A2 | 1km | 1 km² | 3-100x |
 
-大样本管道尺度更一致：ETa (MOD16 500m) 和 ET0 (ERA5 11km) 都是网格产品，模型学到的是网格到网格的映射。
+大样本管道尺度相对站点更一致：ETa (MOD16 500m) 和 ET0 (ERA5 11km) 都是网格产品，模型学到的是网格到网格的映射。2026-05-14 已额外修复构建脚本中的 `pt_*` 主键串号问题，当前大样本以坐标稳定键合并并通过 ETa/ET0/S2 点位对齐检查；但 MOD16 与 ERA5 的原生分辨率差异仍然存在。
 
 ### MOD16 vs 通量塔 ETa 对比
 

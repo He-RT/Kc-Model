@@ -1,6 +1,6 @@
 # Kcact ET Modeling — Handover Document
 
-**Last updated**: 2026-05-13 | **Sessions**: zhandian, remote, mod16-compare, fc-wp-meta | **Ready for compact**
+**Last updated**: 2026-05-14 | **Sessions**: zhandian, remote, mod16-compare, fc-wp-meta, spatial-alignment-fix | **Ready for compact**
 
 ## 1. Project Overview
 
@@ -16,7 +16,7 @@
 | Crop | Dataset | Samples | Best R² | Features |
 |------|---------|---------|---------|----------|
 | Winter wheat | Hebei, 592 patches, 2019–2025 | 18,528 | **0.702** | 46 feat, CatBoost |
-| Summer maize | NCP, 7,153 patches, 2019–2025 | 397,628 | **0.769** | 46 feat, CatBoost |
+| Summer maize | NCP, 2019–2025 | 512,149 after spatial fix | **0.769** | 46 feat, CatBoost; pre-fix score, retrain needed |
 | Summer maize | 4 flux stations, 2003–2015 | 304 | **0.467** | 7 feat, CatBoost LOSO |
 
 **⚠️ Tier 1 improvement attempts (2026-04-26): ALL FAILED**
@@ -24,6 +24,116 @@
 - Stacking ensemble (XGB+CB+LGBM → Ridge): R² = 0.6982 (−0.0035)
 - Water balance features: R² = 0.6924 (−0.0093)
 - **Conclusion**: Default CatBoost at 0.702 was the ceiling with current data.
+
+## 1.1 Critical Data Fix — ETa/ET0 Spatial Alignment (2026-05-14)
+
+**Problem found**: the large-sample builders used the GEE-exported `pt_*` / `feature.id()` as `patch_id`. GEE feature ids are not globally stable across export jobs, provinces, and years. As a result, rows with the same `pt_*` but different coordinates could be merged, pairing MOD16 ETa from one point with ERA5 ET0 from another point.
+
+**Measured severity in old parquet**:
+
+| Dataset | Old mismatched rows | Median ETa/ET0 distance | Max distance |
+|---|---:|---:|---:|
+| Summer maize NCP | 119,462 / 397,628 (30.04%) | 191.55 km | 563.00 km |
+| Winter wheat NCP | 94,673 / 238,464 (39.70%) | 93.16 km | 459.67 km |
+| Hebei winter wheat only | 0 / 18,528 | 0 km | 0 km |
+
+**Fix implemented**:
+
+- `src/kcact/data/kcact_builder.py`
+  - adds `coord_key = round(lat, 6) + "_" + round(lon, 6)`;
+  - creates stable `patch_id = crop + province + season_year + coord_key`;
+  - preserves the old raw GEE id as `gee_point_id`;
+  - aggregates ERA5 daily ET0 to MOD16 windows by `coord_key`, not raw `pt_*`;
+  - merges MOD16/ERA5/S2 by `patch_id + coord_key + date_start + date_end + date`;
+  - enforces a post-merge spatial alignment check; >10 m mismatch raises `ValueError`.
+- GEE export scripts now emit stable coordinate-based `point_id`, `coord_key`, and `gee_feature_id` for future exports:
+  - `scripts/python/export_maize_kcact_training_data.py`
+  - `scripts/python/export_kcact_training_data.py`
+  - `scripts/python/export_hebei_kcact_training_data.py`
+
+**Rebuilt datasets after fix**:
+
+| Dataset | Rows | Stable patch_id count | Time alignment | Spatial alignment |
+|---|---:|---:|---|---|
+| `ncp_summer_maize_kcact_train_ready.parquet` | 512,149 | 42,693 | all 8-day windows, `date=date_end` | max ETa/ET0 coord diff < 1 mm |
+| `ncp_winter_wheat_kcact_train_ready.parquet` | 289,690 | 15,899 | all 8-day windows, `date=date_end` | max ETa/ET0 coord diff < 1 mm |
+
+**Important**: all large-sample model scores before 2026-05-14 should be treated as historical/pre-fix. Retrain the large-sample models with the rebuilt parquet before reporting final performance.
+
+## 1.2 Direct RDVI Export + Strict Numeric QC (2026-05-14)
+
+**Problem found**: the 7-indicator summer-maize run used RDVI reconstructed from aligned NDVI/SAVI because the old S2 export did not include Red/NIR-derived RDVI. The reconstruction is useful for continuity but is not ideal for reporting because S2 window composites store mean indices, not necessarily mean reflectances. EVI also had a tiny number of denominator blow-ups (e.g. EVI outside physical crop ranges).
+
+**Fix implemented**:
+
+- Updated S2 GEE export code in:
+  - `scripts/python/export_maize_kcact_training_data.py`
+  - `scripts/python/export_kcact_training_data.py`
+  - `scripts/python/export_hebei_kcact_training_data.py`
+- New S2 tables include:
+  - direct `rdvi = (NIR - Red) / sqrt(max(NIR + Red, 1e-6))`
+  - `s2_red`, `s2_nir` audit columns
+- Updated `scripts/python/train_maize_selected_indicators.py`:
+  - `--rdvi-source auto|direct|fallback`; final/reported runs should use `--rdvi-source direct` after S2 re-export;
+  - strict numeric QC before training:
+    - `0.02 <= Kcact <= 1.60`
+    - `0.10 <= ET0_daily <= 10.0 mm/d`
+    - `0.0 <= ETa_daily <= 10.0 mm/d`
+    - `-1.0 <= EVI <= 1.5`
+    - `0.02 <= SM <= 0.60`
+    - NDVI/GNDVI/LSWI in `[-1, 1]`, SAVI in `[-1, 1.5]`
+
+**Current rerun on legacy parquet** (RDVI fallback, not final direct-RDVI result):
+
+| Metric | Value |
+|---|---:|
+| QC-valid rows before strict QC | 512,149 |
+| Rows after strict QC before complete-case | 471,916 |
+| Complete 7-indicator rows | 466,381 |
+| Pooled LOYO R² | 0.7119 |
+| RMSE | 0.1935 |
+| MAE | 0.1435 |
+
+**Next required step for final reporting**: re-export/rebuild S2 features with direct RDVI, then rerun:
+
+```bash
+python scripts/python/train_maize_selected_indicators.py --rdvi-source direct
+```
+
+## 1.3 SMAP L4 Grid-Scale Seven-Indicator Run (2026-05-14)
+
+**Data added**:
+
+- Copied from Google Drive into `data/raw/gee/kcact_maize_modis_indicators/`:
+  - `maize_smap_l4_aligned_2019.csv` … `maize_smap_l4_aligned_2025.csv`
+- Export source: `NASA/SMAP/SPL4SMGP/008`, 8-day windows aligned to corrected maize Kcact rows.
+
+**Script added**:
+
+- `scripts/python/train_maize_selected_indicators_smapgrid.py`
+
+**Method**:
+
+- Unifies the seven selected indicators to the actual SMAP L4 sampled cell/window scale.
+- Infers practical SMAP cell-window groups from identical SMAP sampled values in the same window, rather than guessing EASE-Grid cell boundaries from lat/lon.
+- Aggregates target as `mean(MOD16 ETa) / mean(ERA5 ET0)`.
+- Applies strict QC before aggregation:
+  - 8-day window only
+  - `0.10 <= ET0_daily <= 10.0 mm/d`
+  - `0.0 <= ETa_daily <= 10.0 mm/d`
+  - `0.02 <= Kcact <= 1.60`
+  - NDVI/GNDVI in `[-1, 1]`, SAVI in `[-1, 1.5]`, RDVI in `[-2, 2]`, EVI in `[-1, 1.5]`
+  - SM in `[0.02, 0.60]`
+
+**Results**:
+
+| SMAP SM source | Rows | Pooled LOYO R² | RMSE | MAE |
+|---|---:|---:|---:|---:|
+| `sm_surface` | 173,889 | **0.7208** | 0.1818 | 0.1370 |
+| `sm_rootzone` | 173,855 | 0.6866 | 0.1926 | 0.1460 |
+| `sm_profile` | 173,850 | 0.6824 | 0.1939 | 0.1473 |
+
+**Takeaway**: SMAP surface SM is best among SMAP L4 variables in this seven-indicator setup. It improves product realism/availability but does not beat the earlier ERA5-like 0.1° aggregation run (R²≈0.746).
 
 ## 2. Git Repository State
 
@@ -486,5 +596,6 @@ Three rounds of submission, two failures:
 - **Station name encoding**: MODIS extracts use English names (yucheng, weishan, etc.), other data uses Chinese (禹城, 位山). Always map before merging.
 - **MOD16A2GF at Luancheng**: 500 MOD16 windows all NaN at Luancheng (37.88°N, 114.69°E) — MOD16 land cover mask likely excludes this pixel. Other 3 stations OK.
 - **MOD16 8-day total vs daily**: MOD16A2GF ET band is 8-day total (mm) with scale factor 0.1. Must divide by 8 to compare with daily mean ETc from tower.
-- **Spatial scale gap**: ERA5-Land weather+SM at 11km vs tower ETa at 100-500m footprint creates a 100-3000x area mismatch in station Kcact denominator. Large-sample pipeline avoids this by having both ETa (MOD16 500m) and ET0 (ERA5 11km) as gridded products, but MOD16 PM algorithm introduces its own ~29% low bias vs tower.
+- **Spatial scale gap**: ERA5-Land weather+SM at 11km vs tower ETa at 100-500m footprint creates a 100-3000x area mismatch in station Kcact denominator. Large-sample pipeline has both ETa (MOD16 500m) and ET0 (ERA5 11km) as gridded products and now uses coordinate-stable joins, but native resolution mismatch and MOD16 PM algorithm bias (~29% low vs tower) remain.
+- **Do not join large-sample tables by raw GEE `pt_*`**: fixed on 2026-05-14. Always use `coord_key`/stable `patch_id`; raw `pt_*` survives only as `gee_point_id`.
 - **Temporal coverage beats spatial resolution** for NDVI: MOD09GA daily 500m outperforms MOD09Q1 8-day 250m, and MOD13Q1 16-day is the worst despite having 250m resolution.

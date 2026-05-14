@@ -263,8 +263,21 @@ def sample_points_in_mask(
     )
     def annotate(feature: ee.Feature) -> ee.Feature:
         coords = feature.geometry().coordinates()
+        lon_key = ee.Number(coords.get(0)).format("%.6f")
+        lat_key = ee.Number(coords.get(1)).format("%.6f")
+        coord_key = lat_key.cat("_").cat(lon_key)
+        point_id = (
+            ee.String("winter_wheat_")
+            .cat(config.province_name.lower())
+            .cat("_")
+            .cat(ee.Number(config.year).format())
+            .cat("_")
+            .cat(coord_key)
+        )
         return feature.set({
-            "point_id": ee.String("pt_").cat(feature.id()),
+            "point_id": point_id,
+            "coord_key": coord_key,
+            "gee_feature_id": feature.id(),
             "centroid_lon": coords.get(0),
             "centroid_lat": coords.get(1),
         })
@@ -344,12 +357,17 @@ def build_s2_table(
             "1.5 * ((nir - red) / (nir + red + 0.5))",
             {"nir": clean.select("B8"), "red": clean.select("B4")},
         ).rename("savi")
+        rdvi = clean.select("B8").subtract(clean.select("B4")).divide(
+            clean.select("B8").add(clean.select("B4")).max(ee.Image.constant(1e-6)).sqrt()
+        ).rename("rdvi")
         gndvi = clean.normalizedDifference(["B8", "B3"]).rename("gndvi")
         lswi = clean.normalizedDifference(["B8", "B11"]).rename("lswi")
         nirv = ndvi.multiply(clean.select("B8")).rename("nirv")
         re_ndvi = clean.normalizedDifference(["B8", "B5"]).rename("re_ndvi")
+        s2_red = clean.select("B4").rename("s2_red")
+        s2_nir = clean.select("B8").rename("s2_nir")
         obs = clean.select("B8").mask().rename("valid_obs")
-        return clean.addBands([ndvi, evi, savi, gndvi, lswi, nirv, re_ndvi, obs])
+        return clean.addBands([ndvi, evi, savi, rdvi, gndvi, lswi, nirv, re_ndvi, s2_red, s2_nir, obs])
 
     def iterate_fn(item, acc):
         acc_fc = ee.FeatureCollection(acc)
@@ -358,7 +376,10 @@ def build_s2_table(
         date_end = date_start.advance(8, "day")
 
         s2_collection = build_cloud_joined_collection(date_start, date_end, hebei).map(_s2_indices)
-        band_names = ["ndvi", "evi", "savi", "gndvi", "lswi", "nirv", "re_ndvi", "valid_obs"]
+        band_names = [
+            "ndvi", "evi", "savi", "rdvi", "gndvi", "lswi",
+            "nirv", "re_ndvi", "s2_red", "s2_nir", "valid_obs",
+        ]
         fallback = ee.Image.constant([0]*len(band_names)).rename(band_names)
         composite = ee.Image(
             ee.Algorithms.If(

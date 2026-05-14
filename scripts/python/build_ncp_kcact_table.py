@@ -114,7 +114,8 @@ def main() -> None:
     merged = pd.concat(frames, ignore_index=True)
     del frames
 
-    # Deduplicate: drop duplicate (patch_id, date) rows (point_id may differ)
+    # Deduplicate after province merge.  patch_id is crop+province+season_year
+    # + coordinate, not the unstable GEE pt_* id, so it is globally stable.
     n_before = len(merged)
     merged = merged.drop_duplicates(subset=["patch_id", "date"], keep="first")
     if len(merged) < n_before:
