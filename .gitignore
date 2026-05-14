@@ -67,3 +67,12 @@ data/processed/modis_cache/
 *.service-account.json
 credentials.json
 token.json
+
+# Xcode local build artifacts
+DerivedData/
+apps/*/DerivedData/
+*.xcuserdata/
+
+# WeChat Mini Program local/private config
+project.private.config.json
+apps/**/project.private.config.json
