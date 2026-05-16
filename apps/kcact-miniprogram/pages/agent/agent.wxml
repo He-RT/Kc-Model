@@ -1,0 +1,50 @@
+<view class="screen agent-screen">
+  <view class="section agent-hero">
+    <view class="row between">
+      <view>
+        <view class="title-lg">Kcact 智能助手</view>
+        <view class="body muted">融合地块、遥感、气象与模型结果的智能诊断</view>
+      </view>
+      <view class="agent-badge">AI</view>
+    </view>
+
+    <view class="context-grid">
+      <view wx:for="{{contextCards}}" wx:key="label" class="context-card">
+        <view class="caption muted">{{item.label}}</view>
+        <view class="context-value">{{item.value}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="section chat-card">
+    <view class="row between chat-title-row">
+      <view class="title-md">诊断对话</view>
+      <view class="caption muted">实时分析</view>
+    </view>
+
+    <view class="chat-list">
+      <view wx:for="{{messages}}" wx:key="index" class="msg-row {{item.role}}">
+        <view wx:if="{{item.role == 'agent'}}" class="avatar">K</view>
+        <view class="bubble {{item.role}}">{{item.text}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="title-md">可扩展动作</view>
+    <view class="suggestion-grid">
+      <view wx:for="{{suggestions}}" wx:key="*this" class="suggestion">{{item}}</view>
+    </view>
+  </view>
+
+  <view class="section next-card">
+    <view class="title-md">融合分析能力</view>
+    <view class="body muted">系统将用户选择的地块边界、最新 8 日指标、模型输出和历史曲线一起交给 Agent，由它生成解释、风险等级和管理建议。</view>
+  </view>
+
+  <view class="chat-composer">
+    <view class="composer-plus">+</view>
+    <input class="composer-input" placeholder="输入问题，例如：为什么风险偏高？" value="" confirm-type="send" />
+    <view class="composer-send">发送</view>
+  </view>
+</view>

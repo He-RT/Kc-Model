@@ -1,29 +1,82 @@
 # Kcact ET Modeling — Handover Document
 
-**Last updated**: 2026-05-14 | **Sessions**: zhandian, remote, mod16-compare, fc-wp-meta, spatial-alignment-fix | **Ready for compact**
+**Last updated**: 2026-05-16 | **Sessions**: zhandian, remote, mod16-compare, fc-wp-meta, spatial-alignment-fix, pml-model, midterm-report, miniprogram | **Ready for compact**
 
 ## 1. Project Overview
 
 **Goal**: Predict Kcact (crop coefficient = ETc / ET0) for winter wheat and summer maize in North China Plain.
 
-**Target variable**: Kcact = ETc / ET0
-- ETc from MODIS MOD16A2GF (500m, 8-day) — large sample
-- ETc from flux station lysimeter/eddy covariance (8-day) — station validation
-- ET0 computed via FAO-56 Penman-Monteith from ERA5 weather data
+**Target variable**: Kcact = ETa / ET0
+- Current midterm/reporting target: **PML-V2.2a ETa / ERA5 ET0** — large-sample regional product model.
+- Historical comparison target: MODIS MOD16A2GF ETa / ERA5 ET0 — retained for error-source discussion, not the main product showcase.
+- Station validation target: eddy-covariance / lysimeter ETa divided by station meteorological ET0 when available; station data are for applicability checks and bias explanation, not for product training.
+- ET0 is computed by FAO-56 Penman-Monteith from ERA5 or station meteorological observations depending on the comparison.
 
 **Current best models**:
 
 | Crop | Dataset | Samples | Best R² | Features |
 |------|---------|---------|---------|----------|
-| Winter wheat | Hebei, 592 patches, 2019–2025 | 18,528 | **0.702** | 46 feat, CatBoost |
-| Summer maize | NCP, 2019–2025 | 512,149 after spatial fix | **0.769** | 46 feat, CatBoost; pre-fix score, retrain needed |
-| Summer maize | 4 flux stations, 2003–2015 | 304 | **0.467** | 7 feat, CatBoost LOSO |
+| Summer maize PML/ERA5 | NCP, 2019–2024, ERA5-like 0.1° grid, 8-day windows | **144,877** | **0.765402 LOYO pooled** | 7 feat: NDVI, SAVI, RDVI, GNDVI, EVI, SM, doy |
+| Summer maize MOD16/ERA5 | NCP, 2019–2025, ERA5-like 0.1° grid, 8-day windows | 171,785 | ~0.750 LOYO pooled | 7 feat; historical comparison |
+| Summer maize SMAP L4 | NCP, 2019–2025, SMAP L4 scale | 173,889 | 0.7208 LOYO pooled | 7 feat with `sm_surface` |
+| Winter wheat | Hebei, 592 patches, 2019–2025 | 18,528 | 0.702 | 46 feat, CatBoost; older baseline |
+| Summer maize station | 4 flux stations, 2003–2015 | 304 | 0.467 LOSO / 0.518 with ETc+ET0 | station validation only |
 
 **⚠️ Tier 1 improvement attempts (2026-04-26): ALL FAILED**
 - CatBoost hyperparameter tuning (50-trial Optuna): R² = 0.6881 (−0.0136)
 - Stacking ensemble (XGB+CB+LGBM → Ridge): R² = 0.6982 (−0.0035)
 - Water balance features: R² = 0.6924 (−0.0093)
 - **Conclusion**: Default CatBoost at 0.702 was the ceiling with current data.
+
+## 1.0 Current Midterm Baseline and Deliverables (NEW 2026-05-16)
+
+### 1.0.1 PML/ERA5 seven-indicator model
+
+Use this as the main midterm-report and mini-program model unless explicitly comparing alternatives.
+
+- **Label**: `Kcact = PML-V2.2a ETa / ERA5 ET0`
+- **Crop/region**: summer maize, North China Plain
+- **Years**: 2019–2024
+- **Scale**: ERA5-like 0.1° grid; 8-day windows
+- **Features**: `NDVI, SAVI, RDVI, GNDVI, EVI, SM, doy`
+- **QC**: strict numeric thresholds for Kcact, ETa, ET0, vegetation indices, SM, and 8-day windows
+- **Result**: `LOYO pooled R² = 0.765402`, `RMSE = 0.101760`, `MAE = 0.075630`
+- **Training table**: `data/processed/train/ncp_summer_maize_selected_indicators_pml_era5grid.parquet`
+- **Script**: `scripts/python/train_maize_selected_indicators_pml_era5grid.py`
+
+Rationale: PML-V2.2a is currently more suitable than MOD16 for the report narrative because station-location validation shows PML ETa has a much stronger relationship with measured ETa than MOD16 at flux-tower sites. The product remains feasible because PML/ERA5/Sentinel-2/SM inputs are gridded public data sources rather than station-only data.
+
+### 1.0.2 Current report figures
+
+| Purpose | Preferred file | Notes |
+|---|---|---|
+| Main seasonal Kcact comparison | `outputs/figures/pml_era5_vs_station_met_kcact_doy_summer_maize_paper.pdf` | PML/ERA5 vs station ETa/station ET0 over 06-09—10-15; in-plot R²=0.932 for 8-day mean curves |
+| ERA5 ET0 bias explanation | `outputs/figures/station_era5_vs_met_et0_linear.pdf` | Overall r=0.856, R²=0.732, ERA5 mean bias +0.583 mm/d |
+| PML ETa station validation | `outputs/figures/station_pml_v22a_vs_tower_eta_linear.png` | PML vs tower ETa: r=0.768, R²=0.590 |
+| Technical route | `outputs/figures/technical_route_publication_bw.pdf` | Use black/white publication style; do not put title inside figure |
+| Mini-program screenshots | generated from `apps/kcact-miniprogram/` | Current pages: overview, parcel, model, report, agent |
+
+### 1.0.3 Mini-program / product demo state
+
+- Directory: `apps/kcact-miniprogram/`
+- Current display values are synchronized with the PML/ERA5 model:
+  - grid cells: 3,642
+  - training samples: 144,877
+  - LOYO R²: 0.765
+  - RMSE: 0.102
+  - MAE: 0.076
+- Pages:
+  - `overview`: NCP monitoring dashboard
+  - `parcel`: representative grid/parcel detail
+  - `model`: seven-indicator model, SHAP-style contribution ranking, LOYO yearly validation
+  - `report`: generated diagnostic report
+  - `agent`: intelligent-assistant interaction display for midterm product vision
+
+### 1.0.4 Reporting wording to keep consistent
+
+- Main model wording: “PML-V2.2a ETa 与 ERA5 ET0 构建 Kcact 标签，并统一至 0.1° 尺度进行七指标建模。”
+- Station data wording: “站点涡度相关/实测 ETa 用于适用性验证与误差来源分析，不作为最终产品模型的训练数据源。”
+- Product feasibility wording: “最终产品应保持训练与应用输入源一致，优先使用可自动获取的公开遥感与再分析数据。”
 
 ## 1.1 Critical Data Fix — ETa/ET0 Spatial Alignment (2026-05-14)
 
@@ -443,18 +496,18 @@ Three rounds of submission, two failures:
 
 ## 14. Path Forward
 
-1. ~~FAO-56 ET0 audit~~ → fully compliant, code annotated with equation numbers
-2. ~~GEE exports~~ → 110 CSVs in `data/raw/gee/kcact_maize_modis_indicators/`, including MOD09A1 7-band full set
-3. ~~500+ combo tests~~ → 859 combos (exhaustive) + 255 combos (RDVI) complete
-4. ~~VI permutation~~ → NDVI+EVI+GNDVI+SAVI+RDVI all tested, ceiling at 0.66
-5. ~~Growth stage split~~ → 5-stage analysis complete, DOY dominance documented
-6. **Merge ERA5-Land SM into large-sample parquet** (29M rows, year-by-year to avoid OOM)
-7. **GLDAS SM** — 13 GEE export tasks pending, download when ready
-8. **Direct ETc prediction** with final feature set
-9. **Paper writeup** — core results ready
-10. **Spatial scale unification** — investigate station meteorological observations or DEM downscaling for station-consistent ET0
-11. **MOD16-tower calibration** — build per-station MOD16 bias correction using Guantao (r=0.63, bias minimal) as anchor
-12. **Sentinel-2 for station era** — temporal mismatch (S2 2017+ vs stations 2003-2015); Landsat 5/7/8 (30m, 1984+) is the viable high-res alternative for station period
+1. ~~FAO-56 ET0 audit~~ → compliant, equation-numbered code in `src/kcact/features/et0.py`
+2. ~~ETa/ET0 spatial alignment fix~~ → coordinate-stable `patch_id` and 10 m post-merge assertion implemented
+3. ~~Strict QC and seven-indicator pipeline~~ → Kcact/ETa/ET0/VI/SM thresholds implemented
+4. ~~SMAP L4 comparison~~ → `sm_surface` best but below ERA5-like 0.1° result
+5. ~~PML-V2.2a large-sample export and model~~ → current midterm main result: R²=0.765, RMSE=0.102, MAE=0.076
+6. ~~Station validation figures~~ → ERA5-vs-station ET0, PML-vs-tower ETa, and PML/ERA5-vs-station/met Kcact seasonal curves generated
+7. ~~Mini-program midterm demo~~ → PML model values and agent-style interaction page added
+8. **Direct RDVI finalization** → re-export/rebuild S2 with direct Red/NIR-derived RDVI and rerun PML/ERA5 model with `--rdvi-source direct` if final paper needs a completely direct RDVI provenance
+9. **Report polishing** → use black/white technical route, captions outside figures, superscript citations, Chinese full names for indicators on first mention
+10. **Product-side preprocessing spec** → document how one-click farmland query reproduces training features: PML/ERA5/S2/SM windows, 0.1° aggregation, QC, and Kcact prediction
+11. **SM downscaling research path** → if time permits, test RF/CatBoost downscaling of ERA5/SMAP SM using S1/S2/DEM/DOY auxiliary variables; do not use station-only data for product model
+12. **Post-midterm model update** → add 2025 PML if available and repeat LOYO/temporal holdout; keep training/application data sources consistent
 
 ## 15. MOD16 vs Tower Kcact Comparison (NEW 2026-05-13)
 
@@ -570,6 +623,20 @@ Three rounds of submission, two failures:
 
 ### 19.1 Phenological Dates
 
+**Project convention for future figures/statistics (updated 2026-05-16):**
+
+- Core summer-maize stages used in the report:
+  - Initial stage: `06-15—07-06`
+  - Developing stage: `07-07—08-08`
+  - Mid stage: `08-09—09-12`
+  - End stage: `09-13—10-11`
+- For all later summer-maize growth-season line charts, stage summaries, and station-vs-regional comparisons, keep the full 8-day window coverage as **`06-09—10-15`**.
+- Interpretation: `06-09` is the leading 8-day window retained before the first core stage, and `10-15` is the trailing 8-day window retained after the last core stage. Stage shading/labels should still correspond to `06-15—10-11`; the extra margins are only to avoid truncating 8-day ETa/ET0/PML/remote-sensing windows.
+- Current canonical example figure:
+  - `outputs/figures/pml_era5_vs_station_met_kcact_doy_summer_maize_paper.png`
+  - `outputs/figures/pml_era5_vs_station_met_kcact_doy_summer_maize_paper.pdf`
+  - script: `scripts/python/plot_pml_era5_vs_station_met_kc_doy.py`
+
 | 站 | 播种 | 抽雄 | 收获 | 全生育期 |
 |----|------|------|------|---------|
 | 栾城 (37.88°N) | 6/15-6/20 | 7/28-8/05 | 9/25-10/05 | ~105d |
@@ -585,6 +652,40 @@ Three rounds of submission, two failures:
 - 品种年会报告在 CERN 内部受限制数据库中，非公开可获取。
 - 文献推断主导品种：**郑单 958** (2004+)，此前为农大 108 (pre-2004)
 - 站间品种差异附加影响约 2-5 天，小于纬度梯度的 5-7 天
+
+## 20. Midterm Report and Product Demo Notes (NEW 2026-05-16)
+
+### 20.1 Main narrative
+
+The report should not present the work as “a station model”. The scientifically safer story is:
+
+1. Build a regional gridded Kcact label from public, automatable data (`PML-V2.2a ETa / ERA5 ET0`).
+2. Align ETa, ET0, Sentinel-2 vegetation indices, SM, and DOY in the same 8-day windows and 0.1° grid.
+3. Train and validate with Leave-One-Year-Out to avoid random temporal leakage.
+4. Use station eddy-covariance / meteorological observations as an independent scale-difference and applicability check.
+5. Package outputs into a mini-program style decision-support product: monitoring, parcel diagnosis, model explanation, report generation, and intelligent assistant.
+
+### 20.2 Figure rules learned from teacher feedback
+
+- Do not put the figure title inside the image; use Word caption text instead.
+- Use black/white or one-accent publication style for technical-route figures; avoid colorful dashboard-style route charts in the report body.
+- Use Chinese full names plus acronyms on first mention, e.g. “归一化植被指数（NDVI）”.
+- If a linear/correlation plot already has R², avoid also displaying Pearson r unless necessary.
+- For the summer-maize seasonal line chart, use `06-09—10-15` as the plotted window and explain `06-15—10-11` as the core stage span.
+
+### 20.3 Current product demo state
+
+Mini-program directory: `apps/kcact-miniprogram/`.
+
+Current pages:
+
+- `overview`: regional water-demand/risk dashboard
+- `parcel`: representative grid/parcel detail and seasonal curve
+- `model`: seven-indicator model explanation, contribution ranking, yearly validation
+- `report`: generated diagnostic report
+- `agent`: intelligent assistant interaction display
+
+For midterm presentation, use product wording such as “智能交互模块”“地块诊断报告”“模型解释模块”.
 
 ## 11. Known Issues / Gotchas
 

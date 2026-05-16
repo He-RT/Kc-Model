@@ -1,26 +1,10 @@
 .model-head {
-  position: relative;
-  min-height: 240rpx;
+  min-height: auto;
 }
 
 .model-head .body {
   margin-top: 14rpx;
-  max-width: 460rpx;
-}
-
-.score-block {
-  position: absolute;
-  right: 30rpx;
-  bottom: 30rpx;
-  text-align: right;
-}
-
-.score {
-  margin-top: 4rpx;
-  font-size: 58rpx;
-  line-height: 1;
-  font-weight: 850;
-  color: #1f7a4d;
+  max-width: 100%;
 }
 
 .chip-grid {
@@ -108,4 +92,65 @@
 
 .note {
   margin-top: 14rpx;
+}
+
+
+.model-card-grid {
+  display: flex;
+  gap: 12rpx;
+  margin-top: 24rpx;
+}
+
+.model-card {
+  flex: 1;
+  padding: 18rpx 12rpx;
+  border-radius: 14rpx;
+  background: rgba(31, 122, 77, 0.08);
+}
+
+.model-card-value {
+  margin: 8rpx 0 4rpx;
+  color: #1f7a4d;
+  font-size: 34rpx;
+  line-height: 1;
+  font-weight: 850;
+}
+
+.year-list {
+  margin-top: 22rpx;
+}
+
+.year-row {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  margin-top: 18rpx;
+}
+
+.year-name {
+  width: 76rpx;
+  font-size: 24rpx;
+  font-weight: 800;
+}
+
+.year-track {
+  flex: 1;
+  height: 18rpx;
+  overflow: hidden;
+  border-radius: 8rpx;
+  background: rgba(24, 39, 30, 0.08);
+}
+
+.year-fill {
+  height: 100%;
+  border-radius: 8rpx;
+  background: #1f7a4d;
+}
+
+.year-r2 {
+  width: 110rpx;
+  color: #6f7570;
+  text-align: right;
+  font-size: 22rpx;
+  font-weight: 700;
 }

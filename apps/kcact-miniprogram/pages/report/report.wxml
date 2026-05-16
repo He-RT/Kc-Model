@@ -3,7 +3,7 @@
     <view class="row between report-head">
       <view>
         <view class="title-lg">地块诊断报告</view>
-        <view class="caption muted">2026-05-13 · 样例导出页</view>
+        <view class="caption muted">2026-05-15 · PML 新模型展示页</view>
       </view>
       <view class="report-icon">R</view>
     </view>
@@ -18,11 +18,11 @@
 
   <view class="section">
     <view class="title-md">自动生成结论</view>
-    <view class="body conclusion">该地块近期冠层指数处于较高区间，土壤水分指标低于生育期均值。结合 doy 所示抽雄至灌浆窗口，建议将该地块作为水分风险重点核查对象。</view>
+    <view class="body conclusion">当前模型以 PML-V2.2a ETa 与 ERA5 ET0 构造 Kcact 标签，并统一到 ERA5-like 0.1° 尺度。七指标 LOYO pooled R² 为 0.765，说明在跨年份验证下能够较稳定地重建夏玉米生长季 Kcact 变化。</view>
   </view>
 
   <view class="section">
     <view class="title-md">说明书配图用途</view>
-    <view class="body muted">这页适合放在中期说明书的“产品输出形式”小节，表达系统最终可以从模型结果生成面向管理者的地块报告。</view>
+    <view class="body muted">这页适合放在中期说明书的“产品输出形式”小节，表达系统最终可以从遥感 ETa、ERA5 ET0 与七指标模型生成面向管理者的地块报告。</view>
   </view>
 </view>

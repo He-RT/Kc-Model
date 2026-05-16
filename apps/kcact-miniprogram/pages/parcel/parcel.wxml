@@ -2,15 +2,15 @@
   <view class="section">
     <view class="row between parcel-head">
       <view>
-        <view class="title-lg">NCP-MZ-2024-0831</view>
-        <view class="body muted">夏玉米 · 山东德州 · 抽雄期</view>
+        <view class="title-lg">NCP-MZ-PML-225</view>
+        <view class="body muted">夏玉米 · 华北平原样例格网 · DOY 225</view>
       </view>
-      <view class="eyebrow danger-pill">重点关注</view>
+      <view class="eyebrow danger-pill">峰值窗口</view>
     </view>
 
     <view class="chip-row">
       <view class="chip">36.83°N, 116.57°E</view>
-      <view class="chip">500m 网格</view>
+      <view class="chip">0.1° 统一尺度</view>
     </view>
   </view>
 
@@ -24,8 +24,8 @@
 
   <view class="section">
     <view class="row between">
-      <view class="title-md">近 64 天耗水趋势</view>
-      <view class="caption muted">Kcact / ET0</view>
+      <view class="title-md">PML-Kcact 生长季曲线</view>
+      <view class="caption muted">Kcact / PML ETa</view>
     </view>
 
     <view class="chart">
@@ -36,9 +36,9 @@
     </view>
 
     <view class="chart-days">
-      <text>6/10</text>
-      <text>7/12</text>
-      <text>8/05</text>
+      <text>6/09</text>
+      <text>8/12</text>
+      <text>10/31</text>
     </view>
   </view>
 

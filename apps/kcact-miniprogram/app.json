@@ -3,7 +3,8 @@
     "pages/overview/overview",
     "pages/parcel/parcel",
     "pages/model/model",
-    "pages/report/report"
+    "pages/report/report",
+    "pages/agent/agent"
   ],
   "window": {
     "navigationBarTitleText": "Kcact Vision",
@@ -19,19 +20,33 @@
     "list": [
       {
         "pagePath": "pages/overview/overview",
-        "text": "总览"
+        "text": "总览",
+        "iconPath": "assets/tabbar/overview.png",
+        "selectedIconPath": "assets/tabbar/overview_active.png"
       },
       {
         "pagePath": "pages/parcel/parcel",
-        "text": "地块"
+        "text": "地块",
+        "iconPath": "assets/tabbar/parcel.png",
+        "selectedIconPath": "assets/tabbar/parcel_active.png"
       },
       {
         "pagePath": "pages/model/model",
-        "text": "模型"
+        "text": "模型",
+        "iconPath": "assets/tabbar/model.png",
+        "selectedIconPath": "assets/tabbar/model_active.png"
       },
       {
         "pagePath": "pages/report/report",
-        "text": "报告"
+        "text": "报告",
+        "iconPath": "assets/tabbar/report.png",
+        "selectedIconPath": "assets/tabbar/report_active.png"
+      },
+      {
+        "pagePath": "pages/agent/agent",
+        "text": "助手",
+        "iconPath": "assets/tabbar/agent.png",
+        "selectedIconPath": "assets/tabbar/agent_active.png"
       }
     ]
   },

@@ -2,29 +2,55 @@
 
 基于遥感与气象数据的作物系数（Kcact = ETc / ET0）预测，覆盖冬小麦和夏玉米。
 
-**当前最优模型**（注意：2026-05-14 已修复大样本 ETa/ET0 空间错配，以下模型分数为修复前结果，需用新 parquet 重训刷新）：
+**当前中期报告基线**（2026-05-16）：中期说明书和小程序展示页优先采用 PML-V2.2a ETa 与 ERA5 ET0 构造的区域 Kcact 标签。MOD16 结果保留为历史对照和误差来源讨论，不再作为当前主展示模型。
 
-| 作物 | 数据规模 | 样本数 | LOYO R² | 特征数 | 备注 |
+| 作物/方案 | 数据规模 | 样本数 | 验证指标 | 特征数 | 备注 |
 |------|---------|--------|---------|--------|------|
-| 冬小麦 | 河北 592 patches, 2019–2025 | 18,528 | 0.702 | 46 | |
-| 夏玉米 | 华北四省，2019–2025 | 修复后 512,149 | **0.758** (9 feat) / **0.765** (51 feat) | 9 / 51 | 859组合全量实验；R²待重训 |
-| 夏玉米 | 同上，无天气版 | 同上 | **0.684** (8 feat) | 8 | 纯遥感+DOY |
-| 夏玉米 | 同上，ETc直接预测 | 同上 | **0.762** (9 feat) | 9 | 直接法≈间接法 |
-| 夏玉米 | 同上，VI+SM+DOY 全排列 | 同上 | **0.661** (5 feat) | 5 | 255组合，RDVI零贡献 |
-| 夏玉米（站点） | 4 通量站, 2003–2015 | 304 | **0.467** (7 feat) / **0.518** (ETc+ET0) | 5-7 |
+| 夏玉米 PML/ERA5 七指标 | 华北平原，2019–2024，0.1° ERA5-like 统一尺度，8 日窗口 | **144,877** | **LOYO pooled R²=0.765，RMSE=0.102，MAE=0.076** | 7 | 当前中期报告主模型；Kcact = PML-V2.2a ETa / ERA5 ET0 |
+| 夏玉米 MOD16/ERA5 七指标 | 华北平原，2019–2025，0.1° ERA5-like 统一尺度，8 日窗口 | 171,785 | LOYO pooled R²≈0.750 | 7 | 历史对照；Kcact = MOD16 ETa / ERA5 ET0 |
+| 夏玉米 SMAP L4 七指标 | 华北平原，2019–2025，SMAP L4 采样尺度，8 日窗口 | 173,889 | LOYO pooled R²=0.721 | 7 | `sm_surface` 最优，产品可用性较好但精度低于 ERA5-like |
+| 冬小麦 | 河北 592 patches, 2019–2025 | 18,528 | LOYO R²=0.702 | 46 | 早期模型，当前中期重点为夏玉米 |
+| 夏玉米（站点） | 4 通量站, 2003–2015 | 304 | LOSO R²=0.467（七指标）/ 0.518（ETc+ET0） | 5–7 | 站点数据仅用于适用性验证和偏差分析 |
 
 ## 数据流
 
 ```
 GEE 导出                                 本地处理
 ─────────                              ─────────
-S2 地表反射率 ──→ VI 计算              ┌─→ 合并训练表
-ERA5-Land 气象 ──→ FAO-56 ET0 ────────┤
-MOD16A2 ETc ────→ 8天窗口聚合 ────────┤
-MODIS 热红外/fPAR/反照率 ─────────────┤
-ERA5-Land 土壤水分 ───────────────────┘
-                                       └─→ CatBoost LOYO CV
+Sentinel-2 地表反射率 ──→ NDVI/SAVI/RDVI/GNDVI/EVI ┐
+ERA5-Land 气象 ───────→ FAO-56 ET0，SM，8日窗口 ───┤
+PML-V2.2a ETa ───────→ 8日窗口聚合，Kcact 标签 ────┤
+MOD16A2 ETa / SMAP L4 ─→ 对照实验与误差讨论 ───────┤
+                                                    └─→ 时空对齐 → 0.1°统一尺度 → 严格QC → CatBoost LOYO
 ```
+
+### 2026-05-16 当前主模型、图件与产品展示状态
+
+**主模型口径**：
+
+- 作物与区域：华北平原夏玉米，2019–2024。
+- 标签：`Kcact = PML-V2.2a ETa / ERA5 ET0`。
+- 输入：`NDVI, SAVI, RDVI, GNDVI, EVI, SM, doy`。
+- 时间：8 日窗口；夏玉米图件和阶段统计默认采用 `06-09—10-15` 保留窗口，核心阶段仍按 `06-15—10-11` 解释。
+- 空间：PML、ERA5、Sentinel-2 指标和 SM 均按稳定经纬度键对齐，并统一到 ERA5-like `0.1°` 网格训练。
+- 结果：`LOYO pooled R²=0.765402, RMSE=0.101760, MAE=0.075630`。
+- 训练表：`data/processed/train/ncp_summer_maize_selected_indicators_pml_era5grid.parquet`。
+- 训练脚本：`scripts/python/train_maize_selected_indicators_pml_era5grid.py`。
+
+**站点验证和误差分析图件**：
+
+| 图件 | 文件 | 用途 |
+|---|---|---|
+| PML/ERA5 与站点/气象站 Kcact 生长季折线图 | `outputs/figures/pml_era5_vs_station_met_kcact_doy_summer_maize_paper.pdf` | 中期报告正文图；图内 R²=0.932，表示两个 8 日均值序列趋势一致性 |
+| ERA5 ET0 与气象站 ET0 线性图 | `outputs/figures/station_era5_vs_met_et0_linear.pdf` | 解释 ERA5 ET0 偏大但相关性较高 |
+| PML-V2.2a ETa 与通量塔 ETa 线性图 | `outputs/figures/station_pml_v22a_vs_tower_eta_linear.png` | 证明 PML ETa 比 MOD16 更适合当前站点验证 |
+| 技术路线图 | `outputs/figures/technical_route_publication_bw.pdf` | 推荐插入报告；黑白论文风格，标题放正文图注 |
+
+**小程序展示**：
+
+- 目录：`apps/kcact-miniprogram/`。
+- 当前展示数据已切换为 PML/ERA5 主模型：训练样本 144,877、格网 3,642、LOYO R² 0.765、RMSE 0.102、MAE 0.076。
+- 页面包括：总览、地块、模型、报告、助手；助手页为产品智能交互形态展示。
 
 ### 2026-05-14 大样本 ETa/ET0 空间对齐修复
 
@@ -50,6 +76,14 @@ ERA5-Land 土壤水分 ───────────────────
 | 冬小麦 NCP | 289,690 | 15,899 | 全部 8 天，`date=date_end` | 最大坐标差 < 1 mm |
 
 因此后续模型和图表应基于修复后的 parquet 重新训练，旧版大样本 R² 只能作为历史参考。
+
+### 夏玉米生育期作图/统计时间范围约定
+
+后续所有夏玉米生长季相关折线图、阶段统计和站点—区域对比，默认采用以下时间范围：
+
+- **核心生育阶段**仍按报告表格划分：生长初期 `06-15—07-06`，快速生长期 `07-07—08-08`，生长中期 `08-09—09-12`，生长后期 `09-13—10-11`。
+- **实际绘图/统计保留窗口**：`06-09—10-15`。原因是当前 ETa、ET0、PML、遥感指标均按 8 日窗口组织，作图时需在核心生育阶段前保留一个向前重叠窗口、在核心生育阶段后保留一个向后重叠窗口，避免截断窗口信息。
+- 因此，报告图件中如出现 `06/09` 和 `10/15`，它们是 8 日窗口边界；生育阶段解释仍以 `06/15—10/11` 为准。
 
 ### 2026-05-14 7 指标 RDVI 与严格数值 QC 更新
 
@@ -187,6 +221,11 @@ python scripts/python/plot_station_kcact.py        # 9 张 Nature 风格图
 | `export_maize_modis_indicators.py` | GEE 导出 MODIS fPAR/LST/Albedo/SM |
 | `export_maize_s2raw_and_s1.py` | GEE 导出 S2 原始波段 + Sentinel-1 SAR |
 | `merge_modis_and_retrain_maize.py` | 合并 MODIS 指标 → 大样本重训练 |
+| `train_maize_selected_indicators_pml_era5grid.py` | 当前中期主模型：PML/ERA5 标签 + 七指标 + 0.1° 统一尺度 + LOYO |
+| `train_maize_selected_indicators_era5grid.py` | MOD16/ERA5 标签七指标 0.1° 统一尺度对照实验 |
+| `train_maize_selected_indicators_smapgrid.py` | SMAP L4 尺度七指标对照实验 |
+| `plot_pml_era5_vs_station_met_kc_doy.py` | 论文版夏玉米 Kcact 生长季折线图（06-09—10-15，图内 R²） |
+| `plot_station_era5_vs_met_et0.py` | ERA5 ET0 与气象站 ET0 线性相关图 |
 
 ## 站点验证关键发现
 
@@ -242,6 +281,16 @@ python scripts/python/plot_station_kcact.py        # 9 张 Nature 风格图
 合并后 parquet：`data/processed/train/ncp_summer_maize_kcact_with_modis.parquet`
 
 ## 关键发现 (2026-05)
+
+### PML-V2.2a 替换 MOD16 作为中期主展示标签
+
+站点验证表明，MOD16 在通量塔点位尺度与实测 ETa 的关系较弱，且存在系统性偏低；PML-V2.2a 与实测 ETa 的线性关系更强。因此中期报告主线改为：
+
+```text
+Kcact = PML-V2.2a ETa / ERA5 ET0
+```
+
+该口径下，七指标、0.1° 统一尺度、严格 QC 后的夏玉米 LOYO pooled R² 为 **0.765**。MOD16 结果仍用于说明“不同 ETa 产品会带来标签不确定性”，不作为当前小程序和报告主展示数值。
 
 ### Kc 间接 vs ETc 直接
 大样本（37万）上直接预测 ETc 与间接法（Kc×ET0）效果等价（R² 差异 <0.01）。小样本上间接法更稳定。详见 §Kc 间接法 vs ETc 直接法。

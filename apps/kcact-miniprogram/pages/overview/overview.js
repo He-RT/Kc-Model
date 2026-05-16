@@ -1,10 +1,10 @@
 Page({
   data: {
     metrics: [
-      { label: '监测地块', value: '7,153', unit: 'patches', mark: 'Grid' },
-      { label: '当前作物', value: '夏玉米', unit: '2019-2025', mark: 'Crop' },
-      { label: '平均 Kcact', value: '0.62', unit: '8日窗口', mark: 'Kc' },
-      { label: '模型 R²', value: '0.661', unit: 'VI+SM+doy', mark: 'R2' }
+      { label: '监测格网', value: '3,642', unit: '0.1° cells', mark: 'Grid' },
+      { label: '训练样本', value: '144,877', unit: '2019-2024 · 8日', mark: 'N' },
+      { label: '平均 Kcact', value: '0.67', unit: 'PML/ERA5', mark: 'Kc' },
+      { label: '模型 R²', value: '0.765', unit: 'LOYO pooled', mark: 'R2' }
     ],
     heatCells: [
       'low', 'low', 'low', 'low', 'mid', 'mid', 'low',
@@ -20,10 +20,10 @@ Page({
       { name: '安徽', x: 55, y: 58, size: 'spot-sm spot-low' }
     ],
     stages: [
-      { name: '出苗', progress: 100, active: false },
+      { name: '苗期', progress: 100, active: false },
       { name: '拔节', progress: 100, active: false },
-      { name: '抽雄', progress: 85, active: true },
-      { name: '灌浆', progress: 30, active: false },
+      { name: '抽雄吐丝', progress: 100, active: true },
+      { name: '灌浆', progress: 0, active: false },
       { name: '成熟', progress: 0, active: false }
     ]
   }

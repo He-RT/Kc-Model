@@ -1,10 +1,13 @@
 <view class="screen">
   <view class="section model-head">
-    <view class="title-lg">VI + SM + doy 指标组合</view>
-    <view class="body muted">中期展示版采用 7 个指标：植被状态、土壤水分和物候阶段。</view>
-    <view class="score-block">
-      <view class="caption muted">LOYO R²</view>
-      <view class="score">0.661</view>
+    <view class="title-lg">七指标 Kcact 模型</view>
+    <view class="body muted">以 PML-V2.2a ETa / ERA5 ET0 构造 Kcact 标签，七指标与标签在同一 8 日窗口内对齐。</view>
+    <view class="model-card-grid">
+      <view wx:for="{{modelCards}}" wx:key="label" class="model-card">
+        <view class="caption muted">{{item.label}}</view>
+        <view class="model-card-value">{{item.value}}</view>
+        <view class="caption muted">{{item.unit}}</view>
+      </view>
     </view>
   </view>
 
@@ -18,7 +21,7 @@
   <view class="section">
     <view class="row between">
       <view class="title-md">特征贡献排序</view>
-      <view class="caption muted">静态示意</view>
+      <view class="caption muted">相对贡献示意</view>
     </view>
 
     <view class="feature-list">
@@ -33,7 +36,18 @@
   </view>
 
   <view class="section">
+    <view class="title-md">逐年留一年验证</view>
+    <view class="year-list">
+      <view wx:for="{{yearly}}" wx:key="year" class="year-row">
+        <view class="year-name">{{item.year}}</view>
+        <view class="year-track"><view class="year-fill" style="width: {{item.score}}%;"></view></view>
+        <view class="year-r2">R² {{item.r2}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="section">
     <view class="title-md">建模说明</view>
-    <view class="body muted note">这组指标便于在中期说明书中解释：NDVI/EVI/GNDVI/RDVI/SAVI 负责冠层状态，SM 表示土壤水分，doy 编码生育期。后续可再接入真实地块数据和逐年交叉验证结果。</view>
+    <view class="body muted note">模型训练样本为 2019–2024 年华北平原夏玉米，PML 与 ERA5、S2、SM 均按稳定经纬度键和同一 8 日窗口对齐，再统一到 0.1° 格网训练；不使用未来窗口或全年统计特征。</view>
   </view>
 </view>
